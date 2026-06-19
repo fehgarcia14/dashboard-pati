@@ -85,6 +85,8 @@ let editingEntryId = null, editingAtendId = null, editingInvId = null;
 let charts = { trend: null, categories: null, split: null, payment: null };
 let prevKPI = {};
 let entriesMovFilter = "todos";
+let currentView = 'overview';
+let chartRafId = null;
 
 const filterState = {
   type: "month",
@@ -170,21 +172,42 @@ function initNav() {
       document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
       btn.classList.add("active");
       const view = btn.dataset.view;
+      currentView = view;
       const section = document.getElementById("view-" + view);
       section.classList.add("active");
       document.getElementById("header-title").textContent = VIEW_TITLES[view][0];
       document.getElementById("header-sub").textContent = VIEW_TITLES[view][1];
-      renderActiveView(view);
+      renderCurrentView();
     });
   });
 }
 
-function renderActiveView(view) {
-  if (view === "budget") renderBudget();
-  if (view === "intelligence") renderIntelligence();
-  if (view === "credit-card") renderCreditCard();
-  if (view === "investments") renderInvestments();
-  if (view === "agenda") renderAgenda();
+function renderCurrentView() {
+  switch (currentView) {
+    case 'overview':
+      renderOverviewKPIs();
+      renderOverviewCharts();
+      break;
+    case 'entries':
+      renderEntriesTable();
+      break;
+    case 'credit-card':
+      renderCreditCard();
+      break;
+    case 'investments':
+      renderInvestments();
+      break;
+    case 'agenda':
+      renderAgenda();
+      break;
+    case 'budget':
+      renderBudget();
+      break;
+    case 'intelligence':
+      renderIntelligence();
+      break;
+  }
+  renderLastEntry();
 }
 
 // ============================================================
@@ -401,12 +424,7 @@ function chartBaseOptions({ stacked, legendDisplay } = {}) {
 // RENDER ALL
 // ============================================================
 function renderAll() {
-  renderOverviewKPIs();
-  renderOverviewCharts();
-  renderEntriesTable();
-  renderLastEntry();
-  const v = document.querySelector(".nav-item.active")?.dataset.view;
-  if (v) renderActiveView(v);
+  renderCurrentView();
 }
 
 // ============================================================
@@ -447,11 +465,16 @@ function renderOverviewKPIs() {
 // OVERVIEW — Charts
 // ============================================================
 function renderOverviewCharts() {
-  renderTrendChart();
-  renderCategoryChart();
-  renderPaymentChart();
-  renderSplitChart();
   renderBankCards();
+  if (chartRafId) cancelAnimationFrame(chartRafId);
+  chartRafId = requestAnimationFrame(() => {
+    chartRafId = null;
+    if (currentView !== 'overview') return;
+    try { renderTrendChart(); } catch (e) { console.error('Erro gráfico trend:', e); }
+    try { renderCategoryChart(); } catch (e) { console.error('Erro gráfico categorias:', e); }
+    try { renderPaymentChart(); } catch (e) { console.error('Erro gráfico pagamento:', e); }
+    try { renderSplitChart(); } catch (e) { console.error('Erro gráfico split:', e); }
+  });
 }
 
 function renderTrendChart() {
