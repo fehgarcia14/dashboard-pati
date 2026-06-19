@@ -1,5 +1,5 @@
 // ============================================================
-// DASHBOARD COMPLETO — Financeiro, Cartão, Agenda, Investimentos
+// DASHBOARD COMPLETO — Financeiro, Cartão, Agenda, Investimentos, Metas
 // ============================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -80,13 +80,15 @@ let userProfile = { nome: "", area: "", orcamentos: {} };
 let allEntries = [];
 let allAtendimentos = [];
 let allInvestimentos = [];
-let unsubEntries = null, unsubAtend = null, unsubInvest = null;
-let editingEntryId = null, editingAtendId = null, editingInvId = null;
-let charts = { trend: null, categories: null, split: null, payment: null };
+let allMetas = [];
+let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null;
+let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMetaId = null;
+let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
 let prevKPI = {};
 let entriesMovFilter = "todos";
 let currentView = 'overview';
-let chartRafId = null;
+let chartDebounceTimer = null;
+let skeletonRemoved = false;
 
 const filterState = {
   type: "month",
@@ -106,22 +108,28 @@ onAuthStateChanged(auth, async (user) => {
   document.getElementById("user-name").textContent = userProfile.nome || user.email;
   document.getElementById("user-area").textContent = areaLabel(userProfile.area);
 
+  // Make app visible BEFORE setting up listeners so canvas elements have real dimensions
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("app").style.display = "grid";
+
   initTheme();
   initFilters();
   initNav();
+  initMobileMenu();
   initModals();
+  initTableScrollShadows();
+
   listenEntries();
   listenAtendimentos();
   listenInvestimentos();
-
-  document.getElementById("loading").style.display = "none";
-  document.getElementById("app").style.display = "grid";
+  listenMetas();
 });
 
 document.getElementById("logout-btn").addEventListener("click", async () => {
   if (unsubEntries) unsubEntries();
   if (unsubAtend) unsubAtend();
   if (unsubInvest) unsubInvest();
+  if (unsubMetas) unsubMetas();
   await signOut(auth);
   window.location.href = "index.html";
 });
@@ -153,6 +161,62 @@ function applyTheme(t) {
 }
 
 // ============================================================
+// MOBILE MENU
+// ============================================================
+function initMobileMenu() {
+  const hamburger = document.getElementById("hamburger-btn");
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+
+  const closeSidebar = () => {
+    sidebar.classList.remove("open");
+    hamburger.classList.remove("active");
+    overlay.classList.remove("active");
+  };
+
+  hamburger.addEventListener("click", () => {
+    const isOpen = sidebar.classList.contains("open");
+    if (isOpen) {
+      closeSidebar();
+    } else {
+      sidebar.classList.add("open");
+      hamburger.classList.add("active");
+      overlay.classList.add("active");
+    }
+  });
+
+  overlay.addEventListener("click", closeSidebar);
+
+  document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (window.innerWidth <= 900) closeSidebar();
+    });
+  });
+}
+
+// ============================================================
+// TABLE SCROLL SHADOWS
+// ============================================================
+function initTableScrollShadows() {
+  const checkScroll = (wrap) => {
+    if (wrap.scrollWidth > wrap.clientWidth + 2) {
+      wrap.classList.add("has-scroll");
+    } else {
+      wrap.classList.remove("has-scroll");
+    }
+  };
+
+  const observer = new MutationObserver(() => {
+    document.querySelectorAll(".table-wrap").forEach(checkScroll);
+  });
+
+  observer.observe(document.querySelector(".main"), { childList: true, subtree: true });
+  window.addEventListener("resize", () => {
+    document.querySelectorAll(".table-wrap").forEach(checkScroll);
+  });
+}
+
+// ============================================================
 // NAV
 // ============================================================
 const VIEW_TITLES = {
@@ -161,6 +225,7 @@ const VIEW_TITLES = {
   "credit-card": ["Cartão de Crédito", "Acompanhe suas compras no crédito"],
   investments: ["Investimentos & Reserva", "Aportes, retiradas e saldo dos seus investimentos"],
   agenda: ["Agenda de Clientes", "Atendimentos, faturamento e ranking de clientes"],
+  metas: ["Metas Financeiras", "Acompanhe o progresso das suas metas"],
   budget: ["Orçamento", "Defina limites mensais por categoria de despesa"],
   intelligence: ["Inteligência", "Análises e sugestões automáticas"]
 };
@@ -199,6 +264,9 @@ function renderCurrentView() {
       break;
     case 'agenda':
       renderAgenda();
+      break;
+    case 'metas':
+      renderMetas();
       break;
     case 'budget':
       renderBudget();
@@ -245,7 +313,6 @@ function initFilters() {
     renderAll();
   });
 
-  // Entries movement filter
   document.querySelectorAll("[data-filter-mov]").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll("[data-filter-mov]").forEach(b => b.classList.remove("active"));
@@ -314,6 +381,7 @@ function listenEntries() {
   unsubEntries = onSnapshot(query(ref), (snap) => {
     allEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     populateYearSelect();
+    removeSkeleton();
     renderAll();
   }, () => showToast("Erro ao carregar lançamentos."));
 }
@@ -324,6 +392,7 @@ function listenAtendimentos() {
     allAtendimentos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     populateYearSelect();
     updateClienteDatalist();
+    removeSkeleton();
     renderAll();
   }, () => showToast("Erro ao carregar atendimentos."));
 }
@@ -333,8 +402,28 @@ function listenInvestimentos() {
   unsubInvest = onSnapshot(query(ref), (snap) => {
     allInvestimentos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     updateProdutoDatalist();
+    removeSkeleton();
     renderAll();
   }, () => showToast("Erro ao carregar investimentos."));
+}
+
+function listenMetas() {
+  const ref = collection(db, "usuarios", currentUser.uid, "metas");
+  unsubMetas = onSnapshot(query(ref), (snap) => {
+    allMetas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, () => showToast("Erro ao carregar metas."));
+}
+
+// ============================================================
+// SKELETON LOADING
+// ============================================================
+function removeSkeleton() {
+  if (skeletonRemoved) return;
+  skeletonRemoved = true;
+  document.querySelectorAll(".skeleton-text").forEach(el => {
+    el.classList.remove("skeleton-text");
+  });
 }
 
 // ============================================================
@@ -412,12 +501,24 @@ function chartBaseOptions({ stacked, legendDisplay } = {}) {
   const textColor = cssVar("--ink-soft");
   return {
     responsive: true,
+    maintainAspectRatio: true,
     plugins: { legend: { display: legendDisplay !== undefined ? legendDisplay : !!stacked, position: "bottom", labels: { color: textColor, font: { family: "Work Sans" } } } },
     scales: {
       x: { stacked: !!stacked, grid: { display: false }, ticks: { color: textColor, font: { family: "IBM Plex Mono", size: 11 } } },
       y: { stacked: !!stacked, grid: { color: gridColor }, ticks: { color: textColor, font: { family: "IBM Plex Mono", size: 11 } } }
     }
   };
+}
+
+function daysBetween(dateStr, refDate) {
+  const d = parseDate(dateStr);
+  const r = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+  return Math.ceil((d - r) / (1000 * 60 * 60 * 24));
+}
+
+function fmtDateBR(dateStr) {
+  const d = parseDate(dateStr);
+  return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
 }
 
 // ============================================================
@@ -462,23 +563,31 @@ function renderOverviewKPIs() {
 }
 
 // ============================================================
-// OVERVIEW — Charts
+// OVERVIEW — Charts (FIXED: uses setTimeout instead of RAF)
 // ============================================================
 function renderOverviewCharts() {
   renderBankCards();
-  if (chartRafId) cancelAnimationFrame(chartRafId);
-  chartRafId = requestAnimationFrame(() => {
-    chartRafId = null;
+  renderContasVencer();
+
+  clearTimeout(chartDebounceTimer);
+  chartDebounceTimer = setTimeout(() => {
     if (currentView !== 'overview') return;
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js não carregado — verifique a conexão com o CDN.');
+      return;
+    }
+
     try { renderTrendChart(); } catch (e) { console.error('Erro gráfico trend:', e); }
     try { renderCategoryChart(); } catch (e) { console.error('Erro gráfico categorias:', e); }
     try { renderPaymentChart(); } catch (e) { console.error('Erro gráfico pagamento:', e); }
     try { renderSplitChart(); } catch (e) { console.error('Erro gráfico split:', e); }
-  });
+    try { renderPatrimonioChart(); } catch (e) { console.error('Erro gráfico patrimônio:', e); }
+  }, 80);
 }
 
 function renderTrendChart() {
   const ctx = document.getElementById("chart-trend");
+  if (!ctx) return;
   const now = new Date();
   const months = [];
   for (let i = 11; i >= 0; i--) months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
@@ -498,16 +607,18 @@ function renderTrendChart() {
     data: {
       labels: months.map(d => `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`),
       datasets: [
-        { label: "Receita", data: recData, backgroundColor: cssVar("--sage"), borderRadius: 4 },
-        { label: "Despesa", data: despData, backgroundColor: cssVar("--danger"), borderRadius: 4 }
+        { label: "Receita", data: recData, backgroundColor: cssVar("--sage") || "#4F6B5E", borderRadius: 4 },
+        { label: "Despesa", data: despData, backgroundColor: cssVar("--danger") || "#A23B3B", borderRadius: 4 }
       ]
     },
     options: chartBaseOptions({ legendDisplay: true })
   });
+  charts.trend.resize();
 }
 
 function renderCategoryChart() {
   const ctx = document.getElementById("chart-categories");
+  if (!ctx) return;
   const cur = filteredEntries().filter(e => e.movimento === "saida");
   const byCat = sumBy(cur, e => e.categoria);
   const ids = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
@@ -515,11 +626,14 @@ function renderCategoryChart() {
 
   if (charts.categories) charts.categories.destroy();
   if (ids.length === 0) {
-    legend.innerHTML = `<div class="empty-state" style="padding:12px 0;">Sem despesas no período.</div>`;
+    legend.innerHTML = "";
     ctx.style.display = "none";
+    ctx.parentElement.querySelector(".chart-empty")?.remove();
+    ctx.insertAdjacentHTML("afterend", '<div class="chart-empty"><span class="empty-icon">📊</span><span>Nenhum gasto neste período</span></div>');
     return;
   }
   ctx.style.display = "block";
+  ctx.parentElement.querySelector(".chart-empty")?.remove();
 
   charts.categories = new Chart(ctx, {
     type: "doughnut",
@@ -527,8 +641,9 @@ function renderCategoryChart() {
       labels: ids.map(id => catById(id)?.label || id),
       datasets: [{ data: ids.map(id => byCat[id]), backgroundColor: ids.map(id => catById(id)?.color || "#999"), borderWidth: 0 }]
     },
-    options: { plugins: { legend: { display: false } }, cutout: "62%" }
+    options: { plugins: { legend: { display: false } }, cutout: "62%", responsive: true, maintainAspectRatio: true }
   });
+  charts.categories.resize();
 
   const total = totalOf(cur);
   legend.innerHTML = ids.map(id => `
@@ -541,6 +656,7 @@ function renderCategoryChart() {
 
 function renderPaymentChart() {
   const ctx = document.getElementById("chart-payment");
+  if (!ctx) return;
   const cur = filteredEntries().filter(e => e.movimento === "saida");
   const byPay = sumBy(cur, e => e.formaPagamento || "dinheiro");
   const keys = Object.keys(byPay).sort((a, b) => byPay[b] - byPay[a]);
@@ -549,11 +665,14 @@ function renderPaymentChart() {
 
   if (charts.payment) charts.payment.destroy();
   if (keys.length === 0) {
-    legend.innerHTML = `<div class="empty-state" style="padding:12px 0;">Sem dados.</div>`;
+    legend.innerHTML = "";
     ctx.style.display = "none";
+    ctx.parentElement.querySelector(".chart-empty")?.remove();
+    ctx.insertAdjacentHTML("afterend", '<div class="chart-empty"><span class="empty-icon">💳</span><span>Sem dados de pagamento</span></div>');
     return;
   }
   ctx.style.display = "block";
+  ctx.parentElement.querySelector(".chart-empty")?.remove();
 
   charts.payment = new Chart(ctx, {
     type: "doughnut",
@@ -561,8 +680,9 @@ function renderPaymentChart() {
       labels: keys.map(k => FORMAS_PAGAMENTO[k] || k),
       datasets: [{ data: keys.map(k => byPay[k]), backgroundColor: keys.map(k => payColors[k] || "#999"), borderWidth: 0 }]
     },
-    options: { plugins: { legend: { display: false } }, cutout: "62%" }
+    options: { plugins: { legend: { display: false } }, cutout: "62%", responsive: true, maintainAspectRatio: true }
   });
+  charts.payment.resize();
 
   const total = totalOf(cur);
   legend.innerHTML = keys.map(k => `
@@ -575,19 +695,128 @@ function renderPaymentChart() {
 
 function renderSplitChart() {
   const ctx = document.getElementById("chart-split");
+  if (!ctx) return;
   const cur = filteredEntries().filter(e => e.movimento === "saida");
   const personal = totalOf(cur.filter(e => e.tipo === "pessoal"));
   const professional = totalOf(cur.filter(e => e.tipo === "profissional"));
 
   if (charts.split) charts.split.destroy();
+
+  if (personal === 0 && professional === 0) {
+    ctx.style.display = "none";
+    ctx.parentElement.querySelector(".chart-empty")?.remove();
+    ctx.insertAdjacentHTML("afterend", '<div class="chart-empty"><span class="empty-icon">📊</span><span>Sem despesas neste período</span></div>');
+    return;
+  }
+  ctx.style.display = "block";
+  ctx.parentElement.querySelector(".chart-empty")?.remove();
+
   charts.split = new Chart(ctx, {
     type: "bar",
     data: {
       labels: ["Pessoal", "Profissional"],
-      datasets: [{ data: [personal, professional], backgroundColor: [cssVar("--primary"), cssVar("--gold")], borderRadius: 6 }]
+      datasets: [{ data: [personal, professional], backgroundColor: [cssVar("--primary") || "#6B1F3D", cssVar("--gold") || "#B8893E"], borderRadius: 6 }]
     },
     options: { ...chartBaseOptions({}), indexAxis: "y" }
   });
+  charts.split.resize();
+}
+
+// ============================================================
+// PATRIMÔNIO EVOLUTION CHART (Parte 3.5)
+// ============================================================
+function renderPatrimonioChart() {
+  const ctx = document.getElementById("chart-patrimonio");
+  if (!ctx) return;
+
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+
+  const patrimonioData = months.map(d => {
+    const cutoff = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+    const saldoEntries = allEntries.reduce((acc, e) => {
+      const ed = parseDate(e.data);
+      if (ed > cutoff) return acc;
+      return acc + (e.movimento === "entrada" ? Number(e.valor || 0) : -Number(e.valor || 0));
+    }, 0);
+
+    const saldoInv = allInvestimentos.reduce((acc, e) => {
+      const ed = parseDate(e.data);
+      if (ed > cutoff) return acc;
+      return acc + (e.movimento === "aporte" ? Number(e.valor || 0) : -Number(e.valor || 0));
+    }, 0);
+
+    return saldoEntries + saldoInv;
+  });
+
+  if (charts.patrimonio) charts.patrimonio.destroy();
+  charts.patrimonio = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: months.map(d => `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`),
+      datasets: [{
+        label: "Patrimônio Total",
+        data: patrimonioData,
+        borderColor: cssVar("--primary") || "#6B1F3D",
+        backgroundColor: (cssVar("--primary-soft") || "#F3DEE6") + "80",
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        pointBackgroundColor: cssVar("--primary") || "#6B1F3D"
+      }]
+    },
+    options: {
+      ...chartBaseOptions({ legendDisplay: false }),
+      plugins: { legend: { display: false } }
+    }
+  });
+  charts.patrimonio.resize();
+}
+
+// ============================================================
+// CONTAS A VENCER (Parte 3.3)
+// ============================================================
+function renderContasVencer() {
+  const container = document.getElementById("contas-vencer-list");
+  if (!container) return;
+
+  const today = new Date();
+  const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const in7Days = new Date(todayNorm.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const contas = allEntries.filter(e => {
+    if (e.movimento !== "saida") return false;
+    if (e.statusPagamento !== "pendente") return false;
+    if (!e.fixo && e.formaPagamento !== "credito") return false;
+    const d = parseDate(e.data);
+    return d <= in7Days;
+  }).sort((a, b) => parseDate(a.data) - parseDate(b.data));
+
+  if (contas.length === 0) {
+    container.innerHTML = '<div class="chart-empty"><span class="empty-icon">✅</span><span>Nenhuma conta pendente nos próximos dias</span></div>';
+    return;
+  }
+
+  container.innerHTML = contas.map(e => {
+    const dias = daysBetween(e.data, todayNorm);
+    const cat = catById(e.categoria);
+    const isVencida = dias < 0;
+    const cssClass = isVencida ? "urgente" : "atencao";
+    const prazoText = isVencida ? `Vencida há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""}` :
+                      dias === 0 ? "Vence hoje" :
+                      `Vence em ${dias} dia${dias !== 1 ? "s" : ""}`;
+    return `<div class="conta-vencer-item ${cssClass}">
+      <div class="cv-info">
+        <strong>${cat?.label || e.categoria}</strong>
+        <div class="cv-desc">${e.descricao ? escapeHtml(e.descricao) : fmtDateBR(e.data)} · ${FORMAS_PAGAMENTO[e.formaPagamento] || e.formaPagamento}</div>
+      </div>
+      <span class="cv-prazo">${prazoText}</span>
+      <span class="cv-valor">${fmtBRL(e.valor)}</span>
+    </div>`;
+  }).join("");
 }
 
 function renderBankCards() {
@@ -614,7 +843,7 @@ function renderBankCards() {
   const renderCards = (obj, container) => {
     const entries = Object.entries(obj).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
     if (entries.length === 0) {
-      container.innerHTML = `<div class="empty-state" style="padding:12px;">Sem movimentação.</div>`;
+      container.innerHTML = '<div class="chart-empty"><span class="empty-icon">🏦</span><span>Sem movimentação</span></div>';
       return;
     }
     container.innerHTML = entries.map(([id, val]) => {
@@ -761,7 +990,6 @@ function renderInvestments() {
   animateKPI("kpi-inv-aporte", totalOf(thisMonth.filter(e => e.movimento === "aporte")));
   animateKPI("kpi-inv-retirada", totalOf(thisMonth.filter(e => e.movimento === "retirada")));
 
-  // Product balances
   const prodMap = {};
   allInvestimentos.forEach(e => {
     const key = `${e.banco}|||${e.produto}`;
@@ -778,7 +1006,6 @@ function renderInvestments() {
     document.getElementById("kpi-inv-top-amt").textContent = "";
   }
 
-  // Group by bank
   const byBank = {};
   products.forEach(p => {
     if (!byBank[p.banco]) byBank[p.banco] = [];
@@ -816,7 +1043,6 @@ function renderInvestments() {
     }).join("");
   }
 
-  // History
   const sorted = allInvestimentos.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
   document.getElementById("inv-hist-count").textContent = `${sorted.length} movimento${sorted.length === 1 ? "" : "s"}`;
   const tbody = document.getElementById("inv-tbody");
@@ -853,24 +1079,28 @@ function renderInvestments() {
 }
 
 // ============================================================
-// AGENDA
+// AGENDA (Parte 3.2 — com status agendado/realizado/cancelado)
 // ============================================================
 function renderAgenda() {
   const now = new Date();
   const today = todayStr();
-  const todayAtend = allAtendimentos.filter(a => a.data === today);
-  const monthAtend = allAtendimentos.filter(a => {
+
+  const realizados = allAtendimentos.filter(a => (a.status || "realizado") === "realizado");
+
+  const todayRealizados = realizados.filter(a => a.data === today);
+  const monthRealizados = realizados.filter(a => {
     const d = parseDate(a.data);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   });
-  const yearAtend = allAtendimentos.filter(a => parseDate(a.data).getFullYear() === now.getFullYear());
+  const yearRealizados = realizados.filter(a => parseDate(a.data).getFullYear() === now.getFullYear());
 
-  animateCount("kpi-ag-hoje-qtd", todayAtend.length);
-  animateKPI("kpi-ag-hoje-fat", totalOf(todayAtend));
-  animateKPI("kpi-ag-mes", totalOf(monthAtend));
-  animateKPI("kpi-ag-ano", totalOf(yearAtend));
+  animateCount("kpi-ag-hoje-qtd", allAtendimentos.filter(a => a.data === today).length);
+  animateKPI("kpi-ag-hoje-fat", totalOf(todayRealizados));
+  animateKPI("kpi-ag-mes", totalOf(monthRealizados));
+  animateKPI("kpi-ag-ano", totalOf(yearRealizados));
 
-  // Atendimentos agrupados por dia
+  renderProximosAtendimentos();
+
   const byDay = {};
   allAtendimentos.forEach(a => {
     if (!byDay[a.data]) byDay[a.data] = [];
@@ -890,25 +1120,31 @@ function renderAgenda() {
       const d = parseDate(day);
       const dayLabel = `${DIAS_SEMANA[d.getDay()]}, ${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
       const items = byDay[day].sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
-      const dayTotal = totalOf(items);
+      const dayRealizados = items.filter(a => (a.status || "realizado") === "realizado");
+      const dayTotal = totalOf(dayRealizados);
       return `<div class="agenda-day-group">
         <div class="agenda-day-header">
           <span class="day-label">${dayLabel}</span>
           <span class="day-total">${fmtBRL(dayTotal)}</span>
         </div>
-        ${items.map(a => `
+        ${items.map(a => {
+          const st = a.status || "realizado";
+          return `
           <div class="agenda-item">
             <div class="atend-info">
               <strong>${escapeHtml(a.cliente)}</strong>
+              <span class="status-badge ${st}" style="margin-left:8px;">${st.charAt(0).toUpperCase() + st.slice(1)}</span>
               <div class="atend-details">${a.quantidade || 1}x ${escapeHtml(a.servico)} · ${FORMAS_PAGAMENTO[a.formaPagamento] || a.formaPagamento}${a.observacao ? " · " + escapeHtml(a.observacao) : ""}</div>
             </div>
             <span class="atend-valor">${fmtBRL(a.valorTotal)}</span>
             <div class="row-actions">
+              ${st === "agendado" ? `<button class="btn-sm btn-sage" data-realize-atend="${a.id}" title="Marcar como realizado">✓ Realizado</button>` : ""}
+              ${st === "agendado" ? `<button class="btn-sm" data-cancel-atend="${a.id}" title="Cancelar">✗ Cancelar</button>` : ""}
               <button class="icon-btn" data-edit-atend="${a.id}" title="Editar">✎</button>
               <button class="icon-btn" data-del-atend="${a.id}" title="Excluir">🗑</button>
             </div>
-          </div>
-        `).join("")}
+          </div>`;
+        }).join("")}
       </div>`;
     }).join("");
 
@@ -926,11 +1162,17 @@ function renderAgenda() {
         showToast("Atendimento excluído.");
       });
     });
+    container.querySelectorAll("[data-realize-atend]").forEach(btn => {
+      btn.addEventListener("click", () => handleAtendStatusChange(btn.dataset.realizeAtend, "realizado"));
+    });
+    container.querySelectorAll("[data-cancel-atend]").forEach(btn => {
+      btn.addEventListener("click", () => handleAtendStatusChange(btn.dataset.cancelAtend, "cancelado"));
+    });
   }
 
-  // Ranking de clientes
+  // Ranking de clientes (only realized)
   const clientMap = {};
-  allAtendimentos.forEach(a => {
+  realizados.forEach(a => {
     const name = (a.cliente || "").trim().toLowerCase();
     if (!name) return;
     if (!clientMap[name]) clientMap[name] = { nome: a.cliente, visitas: 0, total: 0 };
@@ -954,6 +1196,186 @@ function renderAgenda() {
       <td class="mono">${fmtBRL(c.total / c.visitas)}</td>
     </tr>`).join("");
   }
+}
+
+// ============================================================
+// PRÓXIMOS ATENDIMENTOS (Parte 3.2)
+// ============================================================
+function renderProximosAtendimentos() {
+  const container = document.getElementById("proximos-list");
+  const emptyEl = document.getElementById("proximos-empty");
+  if (!container) return;
+
+  const today = new Date();
+  const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const in7Days = new Date(todayNorm.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const proximos = allAtendimentos.filter(a => {
+    if ((a.status || "realizado") !== "agendado") return false;
+    const d = parseDate(a.data);
+    return d >= todayNorm && d <= in7Days;
+  }).sort((a, b) => parseDate(a.data) - parseDate(b.data));
+
+  if (proximos.length === 0) {
+    container.innerHTML = "";
+    emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+
+  container.innerHTML = proximos.map(a => {
+    const dias = daysBetween(a.data, todayNorm);
+    const diaText = dias === 0 ? "Hoje" : dias === 1 ? "Amanhã" : `Em ${dias} dias`;
+    const d = parseDate(a.data);
+    const dayName = DIAS_SEMANA[d.getDay()];
+    return `<div class="proximo-item">
+      <div class="proximo-info">
+        <strong>${escapeHtml(a.cliente)}</strong>
+        <div style="font-size:0.78rem;color:var(--ink-soft);margin-top:2px;">${a.quantidade || 1}x ${escapeHtml(a.servico)}</div>
+      </div>
+      <span class="proximo-date">${diaText} · ${dayName}</span>
+      <span class="proximo-valor">${fmtBRL(a.valorTotal)}</span>
+      <button class="btn-sm btn-sage" data-realize-proximo="${a.id}">✓ Realizado</button>
+    </div>`;
+  }).join("");
+
+  container.querySelectorAll("[data-realize-proximo]").forEach(btn => {
+    btn.addEventListener("click", () => handleAtendStatusChange(btn.dataset.realizeProximo, "realizado"));
+  });
+}
+
+async function handleAtendStatusChange(atendId, newStatus) {
+  const atend = allAtendimentos.find(a => a.id === atendId);
+  if (!atend) return;
+
+  const oldStatus = atend.status || "realizado";
+  if (oldStatus === newStatus) return;
+
+  try {
+    if (newStatus === "realizado" && oldStatus !== "realizado") {
+      const lancPayload = {
+        movimento: "entrada",
+        tipo: "profissional",
+        categoria: "servicos",
+        valor: atend.valorTotal,
+        data: atend.data,
+        banco: atend.banco,
+        formaPagamento: atend.formaPagamento,
+        statusPagamento: atend.formaPagamento === "credito" ? "pendente" : "pago",
+        fixo: false,
+        descricao: `${atend.cliente} — ${atend.quantidade || 1}x ${atend.servico}`,
+        origemAgendaId: atendId,
+        criadoEm: serverTimestamp()
+      };
+      const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
+        status: newStatus,
+        lancamentoId: lancRef.id
+      });
+      showToast("Atendimento realizado e lançamento criado.");
+    } else if (newStatus === "cancelado" && oldStatus === "realizado") {
+      if (atend.lancamentoId) {
+        await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
+      }
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
+        status: newStatus,
+        lancamentoId: null
+      });
+      showToast("Atendimento cancelado e lançamento removido.");
+    } else if (newStatus === "agendado" && oldStatus === "realizado") {
+      if (atend.lancamentoId) {
+        await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
+      }
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
+        status: newStatus,
+        lancamentoId: null
+      });
+      showToast("Atendimento reagendado.");
+    } else {
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), { status: newStatus });
+      showToast("Status atualizado.");
+    }
+  } catch (err) {
+    console.error("Erro ao atualizar status:", err);
+    showToast("Erro ao atualizar status.");
+  }
+}
+
+// ============================================================
+// METAS FINANCEIRAS (Parte 3.1)
+// ============================================================
+function renderMetas() {
+  const now = new Date();
+  const ativas = allMetas.filter(m => (m.valorAtual || 0) < m.valorObjetivo);
+  const concluidas = allMetas.filter(m => (m.valorAtual || 0) >= m.valorObjetivo);
+  const totalInvestido = allMetas.reduce((s, m) => s + (m.valorAtual || 0), 0);
+
+  animateCount("kpi-metas-ativas", ativas.length);
+  animateCount("kpi-metas-concluidas", concluidas.length);
+  animateKPI("kpi-metas-investido", totalInvestido);
+
+  const container = document.getElementById("metas-list");
+  const emptyEl = document.getElementById("metas-empty");
+
+  if (allMetas.length === 0) {
+    container.innerHTML = "";
+    emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+
+  const sorted = [...concluidas, ...ativas.sort((a, b) => {
+    const da = parseDate(a.dataLimite);
+    const db2 = parseDate(b.dataLimite);
+    return da - db2;
+  })];
+
+  container.innerHTML = `<div class="metas-grid">${sorted.map(m => {
+    const atual = m.valorAtual || 0;
+    const pct = Math.min(100, (atual / m.valorObjetivo) * 100);
+    const restante = Math.max(0, m.valorObjetivo - atual);
+    const isConcluida = atual >= m.valorObjetivo;
+    const dias = daysBetween(m.dataLimite, now);
+    const deadlineClass = dias < 0 && !isConcluida ? "vencida" : "";
+    const deadlineText = isConcluida ? "Concluída!" :
+                         dias < 0 ? `Vencida há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""}` :
+                         dias === 0 ? "Vence hoje" :
+                         `${dias} dia${dias !== 1 ? "s" : ""} restante${dias !== 1 ? "s" : ""}`;
+
+    return `<div class="meta-card ${isConcluida ? "concluida" : ""}">
+      <div class="meta-nome">${escapeHtml(m.nome)}</div>
+      <div class="meta-progress-track"><div class="meta-progress-fill" style="width:${pct}%"></div></div>
+      <div class="meta-stats">
+        <span><span class="mono">${fmtBRL(atual)}</span> de ${fmtBRL(m.valorObjetivo)}</span>
+        <span class="mono">${Math.round(pct)}%</span>
+      </div>
+      <div class="meta-stats">
+        <span>Falta: <span class="mono">${fmtBRL(restante)}</span></span>
+      </div>
+      <div class="meta-footer">
+        <span class="meta-deadline ${deadlineClass}">${deadlineText}</span>
+        <div class="meta-actions">
+          ${!isConcluida ? `<button class="btn-sm btn-sage" data-aporte-meta="${m.id}">+ Aporte</button>` : ""}
+          <button class="icon-btn" data-edit-meta="${m.id}" title="Editar">✎</button>
+          <button class="icon-btn" data-del-meta="${m.id}" title="Excluir">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("")}</div>`;
+
+  container.querySelectorAll("[data-aporte-meta]").forEach(btn => {
+    btn.addEventListener("click", () => openAporteModal(btn.dataset.aporteMeta));
+  });
+  container.querySelectorAll("[data-edit-meta]").forEach(btn => {
+    btn.addEventListener("click", () => openMetaModal(allMetas.find(m => m.id === btn.dataset.editMeta)));
+  });
+  container.querySelectorAll("[data-del-meta]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Excluir esta meta?")) return;
+      await deleteDoc(doc(db, "usuarios", currentUser.uid, "metas", btn.dataset.delMeta));
+      showToast("Meta excluída.");
+    });
+  });
 }
 
 // ============================================================
@@ -1000,13 +1422,12 @@ function renderBudget() {
 }
 
 // ============================================================
-// INTELLIGENCE
+// INTELLIGENCE (Parte 3.4 — comparativo ano a ano)
 // ============================================================
 function renderIntelligence() {
   const items = [];
   const now = new Date();
 
-  // Sugestão de quanto guardar: média do saldo positivo dos últimos 3 meses × 20%
   const last3Months = [];
   for (let i = 0; i < 3; i++) {
     const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -1023,7 +1444,6 @@ function renderIntelligence() {
     const suggestion = avg * 0.2;
     items.push({ icon: "💰", text: `Sugestão de quanto guardar por mês: ${fmtBRL(suggestion)} (20% da média do saldo positivo dos últimos ${last3Months.length} meses com saldo positivo).` });
 
-    // Comparação com aportes reais
     for (let i = 0; i < 3; i++) {
       const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthInv = allInvestimentos.filter(e => {
@@ -1042,7 +1462,6 @@ function renderIntelligence() {
     }
   }
 
-  // Sugestão de onde cortar: maior categoria variável (fixo=false)
   const cur = filteredEntries().filter(e => e.movimento === "saida" && !e.fixo);
   const byVarCat = sumBy(cur, e => e.categoria);
   const topVarCat = Object.keys(byVarCat).sort((a, b) => byVarCat[b] - byVarCat[a])[0];
@@ -1059,7 +1478,6 @@ function renderIntelligence() {
     items.push({ icon: "✂️", text: `Sugestão de corte: "${cat?.label}" é sua maior despesa variável no período (${fmtBRL(byVarCat[topVarCat])}). ${hints[topVarCat] || "Avalie se há como reduzir."}` });
   }
 
-  // Comparativo fixo x variável
   const allDesp = filteredEntries().filter(e => e.movimento === "saida");
   const fixo = totalOf(allDesp.filter(e => e.fixo));
   const variavel = totalOf(allDesp.filter(e => !e.fixo));
@@ -1069,7 +1487,6 @@ function renderIntelligence() {
     items.push({ icon: "📊", text: `Despesas fixas: ${pctFixo}% (${fmtBRL(fixo)}) — Despesas variáveis: ${100 - pctFixo}% (${fmtBRL(variavel)}).` });
   }
 
-  // Budget estourado
   const orcamentosDefinidos = Object.keys(userProfile.orcamentos || {});
   const byCat = sumBy(allDesp, e => e.categoria);
   const estourados = orcamentosDefinidos.filter(id => {
@@ -1082,12 +1499,13 @@ function renderIntelligence() {
 
   const list = document.getElementById("intelligence-list");
   if (items.length === 0) {
-    list.innerHTML = `<div class="empty-state"><span class="display">Ainda sem dados suficientes</span>Lance receitas e despesas para ver análises aqui.</div>`;
+    list.innerHTML = `<div class="empty-state"><span class="empty-icon">💡</span><span class="display">Ainda sem dados suficientes</span>Lance receitas e despesas para ver análises aqui.</div>`;
   } else {
     list.innerHTML = items.map(i => `<div class="insight-card"><span class="ic">${i.icon}</span><span>${i.text}</span></div>`).join("");
   }
 
-  // Resumo mês a mês
+  renderYearComparison();
+
   const intelYearSel = document.getElementById("intel-year");
   const years = new Set([now.getFullYear()]);
   allEntries.forEach(e => years.add(parseDate(e.data).getFullYear()));
@@ -1098,6 +1516,72 @@ function renderIntelligence() {
     intelYearSel.addEventListener("change", () => renderIntelMonthly(Number(intelYearSel.value)));
   }
   renderIntelMonthly(Number(intelYearSel.value) || now.getFullYear());
+}
+
+// ============================================================
+// YEAR-OVER-YEAR COMPARISON (Parte 3.4)
+// ============================================================
+function renderYearComparison() {
+  const container = document.getElementById("year-comparison-content");
+  const hint = document.getElementById("year-comparison-hint");
+  if (!container) return;
+
+  const year = filterState.year;
+  const prevYear = year - 1;
+  hint.textContent = `${prevYear} vs ${year}`;
+
+  const yearRange = getRange("year", 1, year);
+  const prevRange = getRange("year", 1, prevYear);
+
+  const yearEntries = allEntries.filter(e => inRange(e.data, yearRange));
+  const prevEntries = allEntries.filter(e => inRange(e.data, prevRange));
+
+  const recYear = totalOf(yearEntries.filter(e => e.movimento === "entrada"));
+  const despYear = totalOf(yearEntries.filter(e => e.movimento === "saida"));
+  const saldoYear = recYear - despYear;
+
+  const recPrev = totalOf(prevEntries.filter(e => e.movimento === "entrada"));
+  const despPrev = totalOf(prevEntries.filter(e => e.movimento === "saida"));
+  const saldoPrev = recPrev - despPrev;
+
+  const pctChange = (cur, prev) => {
+    if (prev === 0) return cur > 0 ? 100 : 0;
+    return Math.round(((cur - prev) / Math.abs(prev)) * 100);
+  };
+
+  const recDelta = pctChange(recYear, recPrev);
+  const despDelta = pctChange(despYear, despPrev);
+  const saldoDelta = pctChange(saldoYear, saldoPrev);
+
+  const deltaHtml = (val, label, invertColors) => {
+    if (val === 0) return `<span class="yc-delta neutral">Sem variação</span>`;
+    const isUp = val > 0;
+    const isPositive = invertColors ? !isUp : isUp;
+    return `<span class="yc-delta ${isPositive ? "positive" : "negative"}">${isUp ? "↑" : "↓"} ${Math.abs(val)}% vs ${label}</span>`;
+  };
+
+  if (recPrev === 0 && despPrev === 0) {
+    container.innerHTML = '<div class="chart-empty"><span class="empty-icon">📅</span><span>Sem dados do ano anterior para comparar</span></div>';
+    return;
+  }
+
+  container.innerHTML = `<div class="year-comp-grid">
+    <div class="year-comp-card">
+      <div class="yc-label">Receita Total</div>
+      <span class="yc-value" style="color:var(--sage)">${fmtBRL(recYear)}</span>
+      ${deltaHtml(recDelta, prevYear, false)}
+    </div>
+    <div class="year-comp-card">
+      <div class="yc-label">Despesa Total</div>
+      <span class="yc-value" style="color:var(--danger)">${fmtBRL(despYear)}</span>
+      ${deltaHtml(despDelta, prevYear, true)}
+    </div>
+    <div class="year-comp-card">
+      <div class="yc-label">Saldo</div>
+      <span class="yc-value" style="color:${saldoYear >= 0 ? "var(--sage)" : "var(--danger)"}">${fmtBRL(saldoYear)}</span>
+      ${deltaHtml(saldoDelta, prevYear, false)}
+    </div>
+  </div>`;
 }
 
 function renderIntelMonthly(year) {
@@ -1179,7 +1663,6 @@ function updateProdutoDatalist() {
 // MODALS — init
 // ============================================================
 function initModals() {
-  // Close buttons
   document.querySelectorAll(".modal-close").forEach(btn => {
     btn.addEventListener("click", () => closeModal(btn.dataset.close));
   });
@@ -1189,18 +1672,19 @@ function initModals() {
     });
   });
 
-  // FAB
   document.getElementById("fab-add").addEventListener("click", () => {
     const view = document.querySelector(".nav-item.active")?.dataset.view;
     if (view === "investments") openInvModal(null);
     else if (view === "agenda") openAtendModal(null);
+    else if (view === "metas") openMetaModal(null);
     else openEntryModal(null);
   });
 
-  // Entry modal logic
   initEntryModal();
   initAtendModal();
   initInvModal();
+  initMetaModal();
+  initAporteModal();
 }
 
 function closeModal(id) {
@@ -1208,7 +1692,6 @@ function closeModal(id) {
   if (el) el.classList.remove("active");
 }
 
-// ---- Populate bank selects ----
 function populateBankSelect(selId) {
   const sel = document.getElementById(selId);
   sel.innerHTML = BANKS.map(b => `<option value="${b.id}">${b.label}</option>`).join("");
@@ -1220,7 +1703,6 @@ function populateBankSelect(selId) {
 function initEntryModal() {
   populateBankSelect("entry-banco");
 
-  // Movimento toggle (entrada/saida)
   document.querySelectorAll("#modal-entry [data-mov]").forEach(pill => {
     pill.addEventListener("click", () => {
       document.querySelectorAll("#modal-entry [data-mov]").forEach(p => p.classList.remove("active"));
@@ -1232,7 +1714,6 @@ function initEntryModal() {
     });
   });
 
-  // Tipo toggle (pessoal/profissional)
   document.querySelectorAll("#modal-entry [data-tipo]").forEach(pill => {
     pill.addEventListener("click", () => {
       document.querySelectorAll("#modal-entry [data-tipo]").forEach(p => p.classList.remove("active"));
@@ -1241,7 +1722,6 @@ function initEntryModal() {
     });
   });
 
-  // Forma pagamento → status
   document.getElementById("entry-forma").addEventListener("change", (e) => {
     document.getElementById("entry-status-group").style.display = e.target.value === "credito" ? "block" : "none";
   });
@@ -1336,7 +1816,7 @@ async function handleEntrySubmit(e) {
 }
 
 // ============================================================
-// ATENDIMENTO MODAL
+// ATENDIMENTO MODAL (Parte 3.2 — com status)
 // ============================================================
 function initAtendModal() {
   populateBankSelect("atend-banco");
@@ -1370,6 +1850,7 @@ function openAtendModal(atend) {
   document.getElementById("atend-data").value = atend?.data || todayStr();
   document.getElementById("atend-forma").value = atend?.formaPagamento || "pix";
   document.getElementById("atend-banco").value = atend?.banco || "outro";
+  document.getElementById("atend-status").value = atend?.status || "realizado";
   document.getElementById("atend-obs").value = atend?.observacao || "";
 
   document.getElementById("modal-atendimento").classList.add("active");
@@ -1387,6 +1868,7 @@ async function handleAtendSubmit(e) {
   const data = document.getElementById("atend-data").value;
   const formaPagamento = document.getElementById("atend-forma").value;
   const banco = document.getElementById("atend-banco").value;
+  const status = document.getElementById("atend-status").value;
   const observacao = document.getElementById("atend-obs").value.trim();
 
   if (!cliente) { errEl.textContent = "Informe o nome do cliente."; return; }
@@ -1413,23 +1895,52 @@ async function handleAtendSubmit(e) {
 
     if (editingAtendId) {
       const atend = allAtendimentos.find(a => a.id === editingAtendId);
-      if (atend?.lancamentoId) {
+      const oldStatus = atend?.status || "realizado";
+
+      if (status === "realizado" && oldStatus === "realizado" && atend?.lancamentoId) {
         await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId), lancPayload);
+      } else if (status === "realizado" && oldStatus !== "realizado") {
+        const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
+        await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", editingAtendId), {
+          cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
+          lancamentoId: lancRef.id
+        });
+        showToast("Atendimento atualizado e lançamento criado.");
+        closeModal("modal-atendimento");
+        document.getElementById("atend-form").reset();
+        editingAtendId = null;
+        btn.disabled = false;
+        btn.textContent = "Salvar atendimento";
+        return;
+      } else if (status !== "realizado" && oldStatus === "realizado" && atend?.lancamentoId) {
+        await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
       }
+
       await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", editingAtendId), {
-        cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao
+        cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
+        lancamentoId: status === "realizado" ? (atend?.lancamentoId || null) : null
       });
       showToast("Atendimento atualizado.");
     } else {
-      const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
-      const atendPayload = {
-        cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao,
-        lancamentoId: lancRef.id,
-        criadoEm: serverTimestamp()
-      };
-      const atendRef = await addDoc(collection(db, "usuarios", currentUser.uid, "atendimentos"), atendPayload);
-      await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", lancRef.id), { origemAgendaId: atendRef.id });
-      showToast("Atendimento salvo e lançamento criado.");
+      if (status === "realizado") {
+        const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
+        const atendPayload = {
+          cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
+          lancamentoId: lancRef.id,
+          criadoEm: serverTimestamp()
+        };
+        const atendRef = await addDoc(collection(db, "usuarios", currentUser.uid, "atendimentos"), atendPayload);
+        await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", lancRef.id), { origemAgendaId: atendRef.id });
+        showToast("Atendimento salvo e lançamento criado.");
+      } else {
+        const atendPayload = {
+          cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
+          lancamentoId: null,
+          criadoEm: serverTimestamp()
+        };
+        await addDoc(collection(db, "usuarios", currentUser.uid, "atendimentos"), atendPayload);
+        showToast("Atendimento agendado.");
+      }
     }
 
     closeModal("modal-atendimento");
@@ -1514,6 +2025,107 @@ async function handleInvSubmit(e) {
   } finally {
     btn.disabled = false;
     btn.textContent = editingInvId ? "Salvar alterações" : "Salvar movimento";
+  }
+}
+
+// ============================================================
+// META MODAL (Parte 3.1)
+// ============================================================
+function initMetaModal() {
+  document.getElementById("meta-form").addEventListener("submit", handleMetaSubmit);
+}
+
+function openMetaModal(meta) {
+  editingMetaId = meta ? meta.id : null;
+  document.getElementById("modal-meta-title").textContent = meta ? "Editar meta" : "Nova meta";
+  document.getElementById("meta-error").textContent = "";
+  document.getElementById("meta-submit").textContent = meta ? "Salvar alterações" : "Salvar meta";
+
+  document.getElementById("meta-nome").value = meta?.nome || "";
+  document.getElementById("meta-valor-objetivo").value = meta?.valorObjetivo || "";
+  document.getElementById("meta-data-limite").value = meta?.dataLimite || "";
+
+  document.getElementById("modal-meta").classList.add("active");
+}
+
+async function handleMetaSubmit(e) {
+  e.preventDefault();
+  const errEl = document.getElementById("meta-error");
+  const btn = document.getElementById("meta-submit");
+  const nome = document.getElementById("meta-nome").value.trim();
+  const valorObjetivo = Number(document.getElementById("meta-valor-objetivo").value);
+  const dataLimite = document.getElementById("meta-data-limite").value;
+
+  if (!nome) { errEl.textContent = "Informe o nome da meta."; return; }
+  if (!valorObjetivo || valorObjetivo <= 0) { errEl.textContent = "Informe um valor válido."; return; }
+  if (!dataLimite) { errEl.textContent = "Informe a data limite."; return; }
+
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  try {
+    if (editingMetaId) {
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", editingMetaId), { nome, valorObjetivo, dataLimite });
+      showToast("Meta atualizada.");
+    } else {
+      await addDoc(collection(db, "usuarios", currentUser.uid, "metas"), {
+        nome, valorObjetivo, dataLimite, valorAtual: 0, criadoEm: serverTimestamp()
+      });
+      showToast("Meta criada.");
+    }
+    closeModal("modal-meta");
+    document.getElementById("meta-form").reset();
+    editingMetaId = null;
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Não foi possível salvar.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = editingMetaId ? "Salvar alterações" : "Salvar meta";
+  }
+}
+
+// ============================================================
+// APORTE MODAL (Parte 3.1)
+// ============================================================
+function initAporteModal() {
+  document.getElementById("aporte-form").addEventListener("submit", handleAporteSubmit);
+}
+
+function openAporteModal(metaId) {
+  document.getElementById("aporte-meta-id").value = metaId;
+  document.getElementById("aporte-valor").value = "";
+  document.getElementById("aporte-error").textContent = "";
+  document.getElementById("modal-aporte").classList.add("active");
+}
+
+async function handleAporteSubmit(e) {
+  e.preventDefault();
+  const errEl = document.getElementById("aporte-error");
+  const btn = document.getElementById("aporte-submit");
+  const metaId = document.getElementById("aporte-meta-id").value;
+  const valor = Number(document.getElementById("aporte-valor").value);
+
+  if (!valor || valor <= 0) { errEl.textContent = "Informe um valor válido."; return; }
+
+  const meta = allMetas.find(m => m.id === metaId);
+  if (!meta) { errEl.textContent = "Meta não encontrada."; return; }
+
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  try {
+    const novoValor = (meta.valorAtual || 0) + valor;
+    await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", metaId), { valorAtual: novoValor });
+    showToast(`Aporte de ${fmtBRL(valor)} registrado.`);
+    closeModal("modal-aporte");
+    document.getElementById("aporte-form").reset();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Não foi possível registrar o aporte.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Registrar aporte";
   }
 }
 
