@@ -24,9 +24,14 @@
     <nav class="nav-list">
       <button class="nav-item active" data-view="overview">📊 Visão Geral</button>
       <button class="nav-item" data-view="entries">🧾 Lançamentos</button>
+      <button class="nav-item" data-view="credit-card">💳 Cartão de Crédito</button>
+      <button class="nav-item" data-view="investments">📈 Investimentos</button>
+      <button class="nav-item" data-view="agenda">📅 Agenda</button>
       <button class="nav-item" data-view="budget">🎯 Orçamento</button>
-      <button class="nav-item" data-view="insights">💡 Insights</button>
+      <button class="nav-item" data-view="intelligence">💡 Inteligência</button>
     </nav>
+
+    <div class="last-entry-info" id="last-entry-info"></div>
 
     <div class="sidebar-footer">
       <button class="theme-toggle" id="theme-toggle">
@@ -43,7 +48,7 @@
     <div class="main-header">
       <div>
         <h1 id="header-title">Visão Geral</h1>
-        <div class="sub" id="header-sub">Acompanhe seus gastos pessoais e profissionais</div>
+        <div class="sub" id="header-sub">Acompanhe receitas, despesas e investimentos</div>
       </div>
 
       <div class="filter-bar">
@@ -61,42 +66,45 @@
 
     <!-- ===================== VISÃO GERAL ===================== -->
     <section class="view active" id="view-overview">
-
-      <div class="kpi-grid">
-        <div class="kpi-ticket accent-primary">
-          <div class="label">Total no período</div>
-          <span class="value mono" id="kpi-total">R$ 0,00</span>
-          <span class="delta" id="kpi-total-delta"></span>
-        </div>
+      <div class="kpi-grid kpi-grid-5">
         <div class="kpi-ticket accent-sage">
-          <div class="label">Gastos pessoais</div>
-          <span class="value mono" id="kpi-personal">R$ 0,00</span>
-          <span class="delta" id="kpi-personal-pct"></span>
-        </div>
-        <div class="kpi-ticket accent-gold">
-          <div class="label">Gastos profissionais</div>
-          <span class="value mono" id="kpi-professional">R$ 0,00</span>
-          <span class="delta" id="kpi-professional-pct"></span>
+          <div class="label">Receitas no período</div>
+          <span class="value mono" id="kpi-receitas">R$ 0,00</span>
+          <span class="delta" id="kpi-receitas-delta"></span>
         </div>
         <div class="kpi-ticket accent-danger">
-          <div class="label">Maior categoria</div>
-          <span class="value mono" id="kpi-top-category">—</span>
-          <span class="delta" id="kpi-top-category-amt"></span>
+          <div class="label">Despesas no período</div>
+          <span class="value mono" id="kpi-despesas">R$ 0,00</span>
+          <span class="delta" id="kpi-despesas-delta"></span>
+        </div>
+        <div class="kpi-ticket" id="kpi-saldo-card">
+          <div class="label">Saldo do período</div>
+          <span class="value mono" id="kpi-saldo">R$ 0,00</span>
+          <span class="delta" id="kpi-saldo-delta"></span>
+        </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">Maior despesa</div>
+          <span class="value mono" id="kpi-top-desp">—</span>
+          <span class="delta" id="kpi-top-desp-amt"></span>
+        </div>
+        <div class="kpi-ticket accent-primary">
+          <div class="label">Patrimônio Total</div>
+          <span class="value mono" id="kpi-patrimonio">R$ 0,00</span>
+          <span class="delta" id="kpi-patrimonio-hint">Saldo acumulado + Investido</span>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="panel">
           <div class="panel-head">
-            <h3>Evolução mensal</h3>
-            <span class="hint">Últimos 12 meses · linha do tempo completa</span>
+            <h3>Receita x Despesa</h3>
+            <span class="hint">Últimos 12 meses</span>
           </div>
           <canvas id="chart-trend" height="260"></canvas>
         </div>
-
         <div class="panel">
           <div class="panel-head">
-            <h3>Por categoria</h3>
+            <h3>Despesas por categoria</h3>
             <span class="hint">Período selecionado</span>
           </div>
           <canvas id="chart-categories" height="220"></canvas>
@@ -104,14 +112,40 @@
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h3>Pessoal x Profissional</h3>
-          <span class="hint">Comparativo do período</span>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Saldo por Banco no Período</h3>
+            <span class="hint">Entradas − saídas no período filtrado</span>
+          </div>
+          <div class="bank-cards-grid" id="bank-cards-period"></div>
         </div>
-        <canvas id="chart-split" height="120"></canvas>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Saldo Atual por Banco</h3>
+            <span class="hint">Acumulado desde o início</span>
+          </div>
+          <div class="bank-cards-grid" id="bank-cards-total"></div>
+        </div>
       </div>
 
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Despesas por forma de pagamento</h3>
+            <span class="hint">Período selecionado</span>
+          </div>
+          <canvas id="chart-payment" height="220"></canvas>
+          <div class="legend-list" id="legend-payment"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Pessoal x Profissional</h3>
+            <span class="hint">Despesas do período</span>
+          </div>
+          <canvas id="chart-split" height="220"></canvas>
+        </div>
+      </div>
     </section>
 
     <!-- ===================== LANÇAMENTOS ===================== -->
@@ -119,15 +153,22 @@
       <div class="panel">
         <div class="panel-head">
           <h3>Todos os lançamentos</h3>
-          <span class="hint" id="entries-count">0 lançamentos no período</span>
+          <div class="entries-filters">
+            <button class="pill-filter active" data-filter-mov="todos">Todos</button>
+            <button class="pill-filter" data-filter-mov="entrada">Entradas</button>
+            <button class="pill-filter" data-filter-mov="saida">Saídas</button>
+          </div>
         </div>
+        <span class="hint" id="entries-count" style="margin-bottom:12px;display:block;">0 lançamentos no período</span>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Data</th>
+                <th>Movimento</th>
                 <th>Categoria</th>
-                <th>Tipo</th>
+                <th>Banco</th>
+                <th>Forma de pgto</th>
                 <th>Descrição</th>
                 <th>Valor</th>
                 <th></th>
@@ -138,7 +179,170 @@
         </div>
         <div class="empty-state" id="entries-empty" style="display:none;">
           <span class="display">Nenhum lançamento aqui ainda</span>
-          Use o botão + no canto da tela para adicionar seu primeiro gasto.
+          Use o botão + no canto da tela para adicionar.
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CARTÃO DE CRÉDITO ===================== -->
+    <section class="view" id="view-credit-card">
+      <div class="kpi-grid">
+        <div class="kpi-ticket accent-sage">
+          <div class="label">Pago</div>
+          <span class="value mono" id="kpi-cc-pago">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">Pendente</div>
+          <span class="value mono" id="kpi-cc-pendente">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-danger">
+          <div class="label">Atrasado</div>
+          <span class="value mono" id="kpi-cc-atrasado">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-primary">
+          <div class="label">Total na fatura</div>
+          <span class="value mono" id="kpi-cc-total">R$ 0,00</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Compras no crédito</h3>
+          <span class="hint" id="cc-count">Período selecionado</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Categoria</th>
+                <th>Banco</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="cc-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="cc-empty" style="display:none;">
+          <span class="display">Nenhuma compra no crédito</span>
+          Lançamentos com forma de pagamento "Crédito" aparecerão aqui.
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== INVESTIMENTOS ===================== -->
+    <section class="view" id="view-investments">
+      <div class="kpi-grid">
+        <div class="kpi-ticket accent-primary">
+          <div class="label">Total Investido</div>
+          <span class="value mono" id="kpi-inv-total">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-sage">
+          <div class="label">Aportes no mês</div>
+          <span class="value mono" id="kpi-inv-aporte">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-danger">
+          <div class="label">Retiradas no mês</div>
+          <span class="value mono" id="kpi-inv-retirada">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">Maior produto</div>
+          <span class="value mono" id="kpi-inv-top">—</span>
+          <span class="delta" id="kpi-inv-top-amt"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Carteira por banco</h3>
+          <span class="hint">Saldo acumulado de cada produto</span>
+        </div>
+        <div id="inv-by-bank"></div>
+        <div class="empty-state" id="inv-empty" style="display:none;">
+          <span class="display">Nenhum investimento cadastrado</span>
+          Use o botão + para registrar seus aportes e retiradas.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Histórico de movimentos</h3>
+          <span class="hint" id="inv-hist-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Banco</th>
+                <th>Produto</th>
+                <th>Tipo</th>
+                <th>Valor</th>
+                <th>Obs</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="inv-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== AGENDA ===================== -->
+    <section class="view" id="view-agenda">
+      <div class="kpi-grid">
+        <div class="kpi-ticket accent-primary">
+          <div class="label">Atendimentos hoje</div>
+          <span class="value mono" id="kpi-ag-hoje-qtd">0</span>
+        </div>
+        <div class="kpi-ticket accent-sage">
+          <div class="label">Faturamento hoje</div>
+          <span class="value mono" id="kpi-ag-hoje-fat">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">Faturamento do mês</div>
+          <span class="value mono" id="kpi-ag-mes">R$ 0,00</span>
+        </div>
+        <div class="kpi-ticket accent-danger">
+          <div class="label">Faturamento do ano</div>
+          <span class="value mono" id="kpi-ag-ano">R$ 0,00</span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Atendimentos</h3>
+            <span class="hint">Agrupados por dia</span>
+          </div>
+          <div id="agenda-list"></div>
+          <div class="empty-state" id="agenda-empty" style="display:none;">
+            <span class="display">Nenhum atendimento registrado</span>
+            Use o botão + para registrar um atendimento.
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Ranking de Clientes</h3>
+            <span class="hint">Maior gasto primeiro</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Visitas</th>
+                  <th>Total gasto</th>
+                  <th>Ticket médio</th>
+                </tr>
+              </thead>
+              <tbody id="ranking-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="ranking-empty" style="display:none;">
+            <span class="display">—</span>
+          </div>
         </div>
       </div>
     </section>
@@ -148,42 +352,74 @@
       <div class="panel">
         <div class="panel-head">
           <h3>Orçado x Realizado</h3>
-          <span class="hint">Defina um limite mensal por categoria e acompanhe</span>
+          <span class="hint">Defina um limite mensal por categoria de despesa</span>
         </div>
         <div id="budget-list"></div>
       </div>
     </section>
 
-    <!-- ===================== INSIGHTS ===================== -->
-    <section class="view" id="view-insights">
+    <!-- ===================== INTELIGÊNCIA ===================== -->
+    <section class="view" id="view-intelligence">
       <div class="panel">
         <div class="panel-head">
-          <h3>Insights do período</h3>
-          <span class="hint">Leituras automáticas sobre seus gastos</span>
+          <h3>Inteligência financeira</h3>
+          <span class="hint">Análises automáticas sobre seus dados</span>
         </div>
-        <div id="insights-list"></div>
+        <div id="intelligence-list"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Resumo mês a mês</h3>
+          <div class="field" style="margin:0;min-width:120px;">
+            <select id="intel-year"></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Receita</th>
+                <th>Despesa</th>
+                <th>Saldo</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="intel-monthly-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
   </main>
 </div>
 
-<button class="fab" id="fab-add" title="Adicionar gasto">+</button>
+<button class="fab" id="fab-add" title="Adicionar">+</button>
 
-<!-- MODAL: Adicionar/editar lançamento -->
-<div class="modal-backdrop" id="modal-backdrop">
+<!-- MODAL: Lançamento financeiro -->
+<div class="modal-backdrop" id="modal-entry">
   <div class="modal">
     <div class="modal-head">
-      <h3 id="modal-title">Novo gasto</h3>
-      <button class="modal-close" id="modal-close">&times;</button>
+      <h3 id="modal-entry-title">Novo lançamento</h3>
+      <button class="modal-close" data-close="modal-entry">&times;</button>
     </div>
-
     <form id="entry-form">
       <input type="hidden" id="entry-id" />
 
       <div class="toggle-group">
+        <button type="button" class="toggle-pill entrada active" data-mov="entrada">Entrada</button>
+        <button type="button" class="toggle-pill saida" data-mov="saida">Saída</button>
+      </div>
+
+      <div class="toggle-group" id="entry-tipo-group" style="display:none;">
         <button type="button" class="toggle-pill personal active" data-tipo="pessoal">Pessoal</button>
         <button type="button" class="toggle-pill professional" data-tipo="profissional">Profissional</button>
+      </div>
+
+      <div class="field">
+        <label for="entry-categoria">Categoria</label>
+        <select id="entry-categoria" required></select>
       </div>
 
       <div class="entry-grid">
@@ -197,18 +433,173 @@
         </div>
       </div>
 
-      <div class="field">
-        <label for="entry-categoria">Categoria</label>
-        <select id="entry-categoria" required></select>
+      <div class="entry-grid">
+        <div class="field">
+          <label for="entry-banco">Banco</label>
+          <select id="entry-banco" required></select>
+        </div>
+        <div class="field">
+          <label for="entry-forma">Forma de pagamento</label>
+          <select id="entry-forma" required>
+            <option value="debito">Débito</option>
+            <option value="credito">Crédito</option>
+            <option value="pix">Pix</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="transferencia">Transferência</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="entry-status-group" style="display:none;">
+        <label for="entry-status">Status do pagamento</label>
+        <select id="entry-status">
+          <option value="pago">Pago</option>
+          <option value="pendente">Pendente</option>
+          <option value="atrasado">Atrasado</option>
+        </select>
+      </div>
+
+      <div id="entry-fixo-group" style="display:none;">
+        <label class="checkbox-label">
+          <input type="checkbox" id="entry-fixo" /> É um gasto fixo (aluguel, internet, mensalidade…)
+        </label>
       </div>
 
       <div class="field">
         <label for="entry-descricao">Descrição (opcional)</label>
-        <input type="text" id="entry-descricao" placeholder="Ex: esmalte, conta de luz, curso de design de sobrancelha..." />
+        <input type="text" id="entry-descricao" placeholder="Ex: conta de luz, comissão de venda..." />
       </div>
 
       <p class="error-msg" id="entry-error"></p>
-      <button type="submit" class="btn btn-primary btn-block" id="entry-submit">Salvar gasto</button>
+      <button type="submit" class="btn btn-primary btn-block" id="entry-submit">Salvar lançamento</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Atendimento -->
+<div class="modal-backdrop" id="modal-atendimento">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-atend-title">Novo atendimento</h3>
+      <button class="modal-close" data-close="modal-atendimento">&times;</button>
+    </div>
+    <form id="atend-form">
+      <input type="hidden" id="atend-id" />
+
+      <div class="field">
+        <label for="atend-cliente">Cliente</label>
+        <input type="text" id="atend-cliente" list="clientes-list" required placeholder="Nome do cliente" autocomplete="off" />
+        <datalist id="clientes-list"></datalist>
+      </div>
+
+      <div class="field">
+        <label for="atend-servico">Serviço</label>
+        <select id="atend-servico" required>
+          <option value="Limpeza de Pele">Limpeza de Pele</option>
+          <option value="Manicure">Manicure</option>
+          <option value="Pedicure">Pedicure</option>
+          <option value="Sobrancelha">Sobrancelha</option>
+          <option value="Depilação">Depilação</option>
+          <option value="Massagem">Massagem</option>
+          <option value="Maquiagem">Maquiagem</option>
+          <option value="Coloração/Química">Coloração/Química</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="atend-qtd">Quantidade</label>
+          <input type="number" id="atend-qtd" min="1" value="1" required />
+        </div>
+        <div class="field">
+          <label for="atend-valor-unit">Valor unitário (R$)</label>
+          <input type="number" id="atend-valor-unit" step="0.01" min="0" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="atend-valor-total">Valor total (R$)</label>
+        <input type="number" id="atend-valor-total" step="0.01" min="0" required />
+      </div>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="atend-data">Data</label>
+          <input type="date" id="atend-data" required />
+        </div>
+        <div class="field">
+          <label for="atend-forma">Forma de pagamento</label>
+          <select id="atend-forma" required>
+            <option value="debito">Débito</option>
+            <option value="credito">Crédito</option>
+            <option value="pix">Pix</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="transferencia">Transferência</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="atend-banco">Banco</label>
+        <select id="atend-banco" required></select>
+      </div>
+
+      <div class="field">
+        <label for="atend-obs">Observação (opcional)</label>
+        <input type="text" id="atend-obs" placeholder="Ex: cliente nova, pagou adiantado..." />
+      </div>
+
+      <p class="error-msg" id="atend-error"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="atend-submit">Salvar atendimento</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Investimento -->
+<div class="modal-backdrop" id="modal-investimento">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-inv-title">Novo movimento</h3>
+      <button class="modal-close" data-close="modal-investimento">&times;</button>
+    </div>
+    <form id="inv-form">
+      <input type="hidden" id="inv-id" />
+
+      <div class="field">
+        <label for="inv-banco">Banco</label>
+        <select id="inv-banco" required></select>
+      </div>
+
+      <div class="field">
+        <label for="inv-produto">Produto</label>
+        <input type="text" id="inv-produto" list="produtos-list" required placeholder="Ex: Caixinha Reserva, CDB, Poupança..." autocomplete="off" />
+        <datalist id="produtos-list"></datalist>
+      </div>
+
+      <div class="toggle-group">
+        <button type="button" class="toggle-pill entrada active" data-inv-mov="aporte">Aporte</button>
+        <button type="button" class="toggle-pill saida" data-inv-mov="retirada">Retirada</button>
+      </div>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="inv-valor">Valor (R$)</label>
+          <input type="number" id="inv-valor" step="0.01" min="0" required />
+        </div>
+        <div class="field">
+          <label for="inv-data">Data</label>
+          <input type="date" id="inv-data" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="inv-obs">Observação (opcional)</label>
+        <input type="text" id="inv-obs" placeholder="Ex: rendimento, reserva de emergência..." />
+      </div>
+
+      <p class="error-msg" id="inv-error"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="inv-submit">Salvar movimento</button>
     </form>
   </div>
 </div>

@@ -1,13 +1,18 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Cada pessoa só pode ler/escrever o PRÓPRIO documento de usuário
     match /usuarios/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // E os PRÓPRIOS lançamentos, dentro do próprio documento
       match /lancamentos/{lancamentoId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /atendimentos/{atendimentoId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /investimentos/{investimentoId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
