@@ -557,9 +557,7 @@ function renderOverviewKPIs() {
 
   const saldoAcum = totalOf(allEntries.filter(e => e.movimento === "entrada")) -
                      totalOf(allEntries.filter(e => e.movimento === "saida"));
-  const totalInv = totalOf(allInvestimentos.filter(e => e.movimento === "aporte")) -
-                   totalOf(allInvestimentos.filter(e => e.movimento === "retirada"));
-  animateKPI("kpi-patrimonio", saldoAcum + totalInv);
+  animateKPI("kpi-patrimonio", saldoAcum);
 }
 
 // ============================================================
@@ -735,20 +733,11 @@ function renderPatrimonioChart() {
 
   const patrimonioData = months.map(d => {
     const cutoff = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
-
-    const saldoEntries = allEntries.reduce((acc, e) => {
+    return allEntries.reduce((acc, e) => {
       const ed = parseDate(e.data);
       if (ed > cutoff) return acc;
       return acc + (e.movimento === "entrada" ? Number(e.valor || 0) : -Number(e.valor || 0));
     }, 0);
-
-    const saldoInv = allInvestimentos.reduce((acc, e) => {
-      const ed = parseDate(e.data);
-      if (ed > cutoff) return acc;
-      return acc + (e.movimento === "aporte" ? Number(e.valor || 0) : -Number(e.valor || 0));
-    }, 0);
-
-    return saldoEntries + saldoInv;
   });
 
   if (charts.patrimonio) charts.patrimonio.destroy();
@@ -834,10 +823,25 @@ function renderBankCards() {
     periodSaldo[bk] = (periodSaldo[bk] || 0) + (e.movimento === "entrada" ? val : -val);
   });
 
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  allInvestimentos.forEach(inv => {
+    const bk = inv.banco || "outro";
+    const val = Number(inv.valor || 0);
+    if (inRange(inv.data, range)) {
+      periodSaldo[bk] = (periodSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
+    }
+  });
+
   allEntries.forEach(e => {
     const bk = e.banco || "outro";
     const val = Number(e.valor || 0);
     totalSaldo[bk] = (totalSaldo[bk] || 0) + (e.movimento === "entrada" ? val : -val);
+  });
+
+  allInvestimentos.forEach(inv => {
+    const bk = inv.banco || "outro";
+    const val = Number(inv.valor || 0);
+    totalSaldo[bk] = (totalSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
   });
 
   const renderCards = (obj, container) => {
