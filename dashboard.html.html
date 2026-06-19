@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ficha — Meu Painel Financeiro</title>
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div id="loading" class="loading-screen">Carregando sua ficha...</div>
+
+<div class="app-shell" id="app" style="display:none;">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand-mark"><span class="dot"></span> Ficha</div>
+
+    <div class="user-chip">
+      <div class="name" id="user-name">—</div>
+      <div class="role" id="user-area">—</div>
+    </div>
+
+    <nav class="nav-list">
+      <button class="nav-item active" data-view="overview">📊 Visão Geral</button>
+      <button class="nav-item" data-view="entries">🧾 Lançamentos</button>
+      <button class="nav-item" data-view="budget">🎯 Orçamento</button>
+      <button class="nav-item" data-view="insights">💡 Insights</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="theme-toggle" id="theme-toggle">
+        <span id="theme-label">Modo claro</span>
+        <span class="knob"></span>
+      </button>
+      <button class="logout-link" id="logout-btn">Sair da conta</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <div class="main-header">
+      <div>
+        <h1 id="header-title">Visão Geral</h1>
+        <div class="sub" id="header-sub">Acompanhe seus gastos pessoais e profissionais</div>
+      </div>
+
+      <div class="filter-bar">
+        <select id="filter-type">
+          <option value="month">Mês</option>
+          <option value="quarter">Trimestre</option>
+          <option value="semester">Semestre</option>
+          <option value="year">Ano completo</option>
+        </select>
+        <select id="filter-value"></select>
+        <select id="filter-year"></select>
+        <button class="btn btn-ghost" id="clear-filters">Limpar filtros</button>
+      </div>
+    </div>
+
+    <!-- ===================== VISÃO GERAL ===================== -->
+    <section class="view active" id="view-overview">
+
+      <div class="kpi-grid">
+        <div class="kpi-ticket accent-primary">
+          <div class="label">Total no período</div>
+          <span class="value mono" id="kpi-total">R$ 0,00</span>
+          <span class="delta" id="kpi-total-delta"></span>
+        </div>
+        <div class="kpi-ticket accent-sage">
+          <div class="label">Gastos pessoais</div>
+          <span class="value mono" id="kpi-personal">R$ 0,00</span>
+          <span class="delta" id="kpi-personal-pct"></span>
+        </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">Gastos profissionais</div>
+          <span class="value mono" id="kpi-professional">R$ 0,00</span>
+          <span class="delta" id="kpi-professional-pct"></span>
+        </div>
+        <div class="kpi-ticket accent-danger">
+          <div class="label">Maior categoria</div>
+          <span class="value mono" id="kpi-top-category">—</span>
+          <span class="delta" id="kpi-top-category-amt"></span>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Evolução mensal</h3>
+            <span class="hint">Últimos 12 meses · linha do tempo completa</span>
+          </div>
+          <canvas id="chart-trend" height="260"></canvas>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Por categoria</h3>
+            <span class="hint">Período selecionado</span>
+          </div>
+          <canvas id="chart-categories" height="220"></canvas>
+          <div class="legend-list" id="legend-categories"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Pessoal x Profissional</h3>
+          <span class="hint">Comparativo do período</span>
+        </div>
+        <canvas id="chart-split" height="120"></canvas>
+      </div>
+
+    </section>
+
+    <!-- ===================== LANÇAMENTOS ===================== -->
+    <section class="view" id="view-entries">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Todos os lançamentos</h3>
+          <span class="hint" id="entries-count">0 lançamentos no período</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Categoria</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="entries-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="entries-empty" style="display:none;">
+          <span class="display">Nenhum lançamento aqui ainda</span>
+          Use o botão + no canto da tela para adicionar seu primeiro gasto.
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ORÇAMENTO ===================== -->
+    <section class="view" id="view-budget">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Orçado x Realizado</h3>
+          <span class="hint">Defina um limite mensal por categoria e acompanhe</span>
+        </div>
+        <div id="budget-list"></div>
+      </div>
+    </section>
+
+    <!-- ===================== INSIGHTS ===================== -->
+    <section class="view" id="view-insights">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Insights do período</h3>
+          <span class="hint">Leituras automáticas sobre seus gastos</span>
+        </div>
+        <div id="insights-list"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<button class="fab" id="fab-add" title="Adicionar gasto">+</button>
+
+<!-- MODAL: Adicionar/editar lançamento -->
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">Novo gasto</h3>
+      <button class="modal-close" id="modal-close">&times;</button>
+    </div>
+
+    <form id="entry-form">
+      <input type="hidden" id="entry-id" />
+
+      <div class="toggle-group">
+        <button type="button" class="toggle-pill personal active" data-tipo="pessoal">Pessoal</button>
+        <button type="button" class="toggle-pill professional" data-tipo="profissional">Profissional</button>
+      </div>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="entry-valor">Valor (R$)</label>
+          <input type="number" id="entry-valor" step="0.01" min="0" required />
+        </div>
+        <div class="field">
+          <label for="entry-data">Data</label>
+          <input type="date" id="entry-data" required />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="entry-categoria">Categoria</label>
+        <select id="entry-categoria" required></select>
+      </div>
+
+      <div class="field">
+        <label for="entry-descricao">Descrição (opcional)</label>
+        <input type="text" id="entry-descricao" placeholder="Ex: esmalte, conta de luz, curso de design de sobrancelha..." />
+      </div>
+
+      <p class="error-msg" id="entry-error"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="entry-submit">Salvar gasto</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ficha — Controle Financeiro para Profissionais da Estética</title>
+<meta name="description" content="Dashboard financeiro feito para quem trabalha com estética: lance seus gastos pessoais e profissionais e acompanhe tudo em um só lugar." />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="auth-wrap">
+
+  <!-- Painel de marca -->
+  <section class="brand-panel">
+    <div class="brand-mark"><span class="dot"></span> Ficha</div>
+
+    <div class="brand-hero">
+      <span class="eyebrow">Controle financeiro · Estética &amp; Beleza</span>
+      <h1>Sua agenda já organiza os clientes.<br>Isso aqui organiza o seu dinheiro.</h1>
+      <p>Lance seus gastos pessoais e do seu negócio — produtos, equipamentos, cadeira alugada, cartão — e veja para onde seu dinheiro está indo, mês a mês, o ano inteiro.</p>
+
+      <div class="swatch-row">
+        <span class="swatch">Produtos &amp; Insumos</span>
+        <span class="swatch">Equipamentos</span>
+        <span class="swatch">Cartão de Crédito</span>
+        <span class="swatch">Moradia</span>
+        <span class="swatch">Cursos</span>
+      </div>
+    </div>
+
+    <div class="brand-footnote">Sem planilha pra abrir. Sem fórmula pra lembrar. Só entrar e lançar.</div>
+  </section>
+
+  <!-- Painel de autenticação -->
+  <section class="auth-panel">
+    <div class="auth-card">
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-target="login-form">Entrar</button>
+        <button class="auth-tab" data-target="signup-form-wrap">Criar conta</button>
+      </div>
+
+      <!-- LOGIN -->
+      <form id="login-form" class="auth-form active">
+        <h2>Bem-vinda de volta</h2>
+        <span class="sub">Entre para ver seus lançamentos.</span>
+
+        <div class="field">
+          <label for="login-email">E-mail</label>
+          <input type="email" id="login-email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="login-password">Senha</label>
+          <input type="password" id="login-password" required autocomplete="current-password" minlength="6" />
+        </div>
+
+        <p class="error-msg" id="login-error"></p>
+        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      </form>
+
+      <!-- CADASTRO -->
+      <div id="signup-form-wrap" class="auth-form">
+        <form id="signup-form">
+          <h2>Criar sua conta</h2>
+          <span class="sub">Leva menos de um minuto.</span>
+
+          <div class="field">
+            <label for="signup-name">Seu nome</label>
+            <input type="text" id="signup-name" required autocomplete="name" />
+          </div>
+          <div class="field">
+            <label for="signup-area">Área de atuação</label>
+            <select id="signup-area" required>
+              <option value="" disabled selected>Selecione</option>
+              <option value="manicure">Manicure &amp; Pedicure</option>
+              <option value="esteticista">Esteticista</option>
+              <option value="cabeleireiro">Cabeleireiro(a)</option>
+              <option value="maquiador">Maquiador(a)</option>
+              <option value="depilador">Depilador(a)</option>
+              <option value="barbeiro">Barbeiro(a)</option>
+              <option value="massoterapeuta">Massoterapeuta</option>
+              <option value="outro">Outra área da beleza</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="signup-email">E-mail</label>
+            <input type="email" id="signup-email" required autocomplete="email" />
+          </div>
+          <div class="field">
+            <label for="signup-password">Senha</label>
+            <input type="password" id="signup-password" required autocomplete="new-password" minlength="6" />
+          </div>
+
+          <p class="error-msg" id="signup-error"></p>
+          <button type="submit" class="btn btn-primary btn-block">Criar minha conta</button>
+        </form>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<script type="module" src="js/auth.js"></script>
+</body>
+</html>
