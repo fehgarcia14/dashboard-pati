@@ -619,16 +619,46 @@ function renderTrendChart() {
   charts.trend.resize();
 }
 
+function darkenColor(hex, amount) {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, (num >> 16) - amount);
+  const g = Math.max(0, ((num >> 8) & 0xFF) - amount);
+  const b = Math.max(0, (num & 0xFF) - amount);
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+function buildCategoryGroups(entries) {
+  const groups = {};
+  entries.forEach(e => {
+    const isCredito = e.formaPagamento === "credito";
+    const key = isCredito ? `${e.categoria}||credito||${e.banco || "outro"}` : `${e.categoria}||other`;
+    if (!groups[key]) {
+      const cat = catById(e.categoria);
+      const baseColor = cat?.color || "#999";
+      const bank = isCredito ? bankById(e.banco) : null;
+      groups[key] = {
+        catId: e.categoria,
+        label: cat?.label || e.categoria,
+        isCredito,
+        bankLabel: bank?.label || null,
+        color: isCredito ? darkenColor(baseColor, 45) : baseColor,
+        total: 0
+      };
+    }
+    groups[key].total += Number(e.valor || 0);
+  });
+  return Object.values(groups).sort((a, b) => b.total - a.total);
+}
+
 function renderCategoryChart() {
   const ctx = document.getElementById("chart-categories");
   if (!ctx) return;
   const cur = filteredEntries().filter(e => e.movimento === "saida");
-  const byCat = sumBy(cur, e => e.categoria);
-  const ids = Object.keys(byCat).sort((a, b) => byCat[b] - byCat[a]);
+  const groups = buildCategoryGroups(cur);
   const legend = document.getElementById("legend-categories");
 
   if (charts.categories) charts.categories.destroy();
-  if (ids.length === 0) {
+  if (groups.length === 0) {
     legend.innerHTML = "";
     ctx.style.display = "none";
     ctx.parentElement.querySelector(".chart-empty")?.remove();
@@ -641,20 +671,21 @@ function renderCategoryChart() {
   charts.categories = new Chart(ctx, {
     type: "doughnut",
     data: {
-      labels: ids.map(id => catById(id)?.label || id),
-      datasets: [{ data: ids.map(id => byCat[id]), backgroundColor: ids.map(id => catById(id)?.color || "#999"), borderWidth: 0 }]
+      labels: groups.map(g => g.isCredito ? `${g.label} · 💳 ${g.bankLabel}` : g.label),
+      datasets: [{ data: groups.map(g => g.total), backgroundColor: groups.map(g => g.color), borderWidth: 0 }]
     },
     options: { plugins: { legend: { display: false } }, cutout: "62%", responsive: true, maintainAspectRatio: true }
   });
   charts.categories.resize();
 
   const total = totalOf(cur);
-  legend.innerHTML = ids.map(id => `
-    <div class="legend-row">
-      <span class="tag"><span class="legend-dot" style="background:${catById(id)?.color || "#999"}"></span>${catById(id)?.label || id}</span>
-      <span class="amt">${fmtBRL(byCat[id])} · ${Math.round((byCat[id] / total) * 100)}%</span>
-    </div>
-  `).join("");
+  legend.innerHTML = groups.map(g => {
+    const creditTag = g.isCredito ? `<span class="cc-origin-tag">💳 ${escapeHtml(g.bankLabel)}</span>` : "";
+    return `<div class="legend-row">
+      <span class="tag"><span class="legend-dot" style="background:${g.color}"></span>${escapeHtml(g.label)}${creditTag}</span>
+      <span class="amt">${fmtBRL(g.total)} · ${total > 0 ? Math.round((g.total / total) * 100) : 0}%</span>
+    </div>`;
+  }).join("");
 }
 
 function renderPaymentChart() {
@@ -1611,6 +1642,13 @@ function renderIntelligence() {
       marketing: "Reavalie o retorno dos investimentos em publicidade."
     };
     items.push({ icon: "✂️", text: `Sugestão de corte: "${cat?.label}" é sua maior despesa variável no período (${fmtBRL(byVarCat[topVarCat])}). ${hints[topVarCat] || "Avalie se há como reduzir."}` });
+
+    const topCreditEntries = cur.filter(e => e.categoria === topVarCat && e.formaPagamento === "credito");
+    const topCreditTotal = totalOf(topCreditEntries);
+    if (topCreditTotal > 0) {
+      const pct = Math.round((topCreditTotal / byVarCat[topVarCat]) * 100);
+      items.push({ icon: "💳", text: `${pct}% dos gastos com "${cat?.label}" (${fmtBRL(topCreditTotal)}) foram no cartão de crédito — fique de olho na fatura.` });
+    }
   }
 
   const allDesp = filteredEntries().filter(e => e.movimento === "saida");

@@ -1276,6 +1276,18 @@ tbody tr:hover { background: var(--surface-2); }
   font-size: 0.88rem;
 }
 
+/* ---- Credit origin tag in category legend ---- */
+.cc-origin-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
 /* ---- Parcela badge ---- */
 .parcela-badge {
   font-size: 0.68rem;
