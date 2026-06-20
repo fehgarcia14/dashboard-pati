@@ -3,3 +3,5 @@ screenshots/
 test-results/
 playwright-report/
 package-lock.json
+take-screenshots.js
+verify-modal.js

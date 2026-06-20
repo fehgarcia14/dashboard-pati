@@ -1,0 +1,24 @@
+{
+  "name": "dashboard-pati",
+  "version": "1.0.0",
+  "description": "Web app onde cada pessoa cria sua conta, faz login e lança seus próprios gastos\r pessoais e profissionais (produtos, equipamentos, cartão, moradia, cursos...),\r acompanhando tudo em dashboards interativos. Nenhuma planilha precisa ser aberta —\r os dados ficam guardados na nuvem (Firebase), separados por usuário.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fehgarcia14/dashboard-pati.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/fehgarcia14/dashboard-pati/issues"
+  },
+  "homepage": "https://github.com/fehgarcia14/dashboard-pati#readme",
+  "devDependencies": {
+    "playwright": "^1.61.0"
+  }
+}
