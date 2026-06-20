@@ -619,35 +619,44 @@ function renderTrendChart() {
   charts.trend.resize();
 }
 
-function darkenColor(hex, amount) {
+function shiftColor(hex, offset) {
   const num = parseInt(hex.replace("#", ""), 16);
-  const r = Math.max(0, (num >> 16) - amount);
-  const g = Math.max(0, ((num >> 8) & 0xFF) - amount);
-  const b = Math.max(0, (num & 0xFF) - amount);
+  const r = Math.max(0, Math.min(255, ((num >> 16) & 0xFF) + offset));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0xFF) + offset));
+  const b = Math.max(0, Math.min(255, (num & 0xFF) + offset));
   return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
 function buildCategoryGroups(entries) {
   const groups = {};
   entries.forEach(e => {
-    const isCredito = e.formaPagamento === "credito";
-    const key = isCredito ? `${e.categoria}||credito||${e.banco || "outro"}` : `${e.categoria}||other`;
+    const banco = e.banco || "outro";
+    const forma = e.formaPagamento || "dinheiro";
+    const key = `${e.categoria}||${banco}||${forma}`;
     if (!groups[key]) {
-      const cat = catById(e.categoria);
-      const baseColor = cat?.color || "#999";
-      const bank = isCredito ? bankById(e.banco) : null;
       groups[key] = {
         catId: e.categoria,
-        label: cat?.label || e.categoria,
-        isCredito,
-        bankLabel: bank?.label || null,
-        color: isCredito ? darkenColor(baseColor, 45) : baseColor,
+        banco,
+        forma,
         total: 0
       };
     }
     groups[key].total += Number(e.valor || 0);
   });
-  return Object.values(groups).sort((a, b) => b.total - a.total);
+
+  const list = Object.values(groups).sort((a, b) => b.total - a.total);
+
+  const catVariantIndex = {};
+  list.forEach(g => {
+    if (!catVariantIndex[g.catId]) catVariantIndex[g.catId] = 0;
+    g.variantIndex = catVariantIndex[g.catId]++;
+    g.variantCount = 0;
+  });
+  list.forEach(g => {
+    g.variantCount = catVariantIndex[g.catId];
+  });
+
+  return list;
 }
 
 function renderCategoryChart() {
@@ -668,21 +677,38 @@ function renderCategoryChart() {
   ctx.style.display = "block";
   ctx.parentElement.querySelector(".chart-empty")?.remove();
 
+  const colors = groups.map(g => {
+    const baseColor = catById(g.catId)?.color || "#999";
+    if (g.variantCount <= 1) return baseColor;
+    const step = Math.round(70 / g.variantCount);
+    return shiftColor(baseColor, -step * g.variantIndex);
+  });
+
+  const labels = groups.map(g => {
+    const catLabel = catById(g.catId)?.label || g.catId;
+    const bankLabel = bankById(g.banco).label;
+    const formaLabel = FORMAS_PAGAMENTO[g.forma] || g.forma;
+    return `${catLabel} · ${bankLabel} · ${formaLabel}`;
+  });
+
   charts.categories = new Chart(ctx, {
     type: "doughnut",
     data: {
-      labels: groups.map(g => g.isCredito ? `${g.label} · 💳 ${g.bankLabel}` : g.label),
-      datasets: [{ data: groups.map(g => g.total), backgroundColor: groups.map(g => g.color), borderWidth: 0 }]
+      labels,
+      datasets: [{ data: groups.map(g => g.total), backgroundColor: colors, borderWidth: 0 }]
     },
     options: { plugins: { legend: { display: false } }, cutout: "62%", responsive: true, maintainAspectRatio: true }
   });
   charts.categories.resize();
 
   const total = totalOf(cur);
-  legend.innerHTML = groups.map(g => {
-    const creditTag = g.isCredito ? `<span class="cc-origin-tag">💳 ${escapeHtml(g.bankLabel)}</span>` : "";
+  legend.innerHTML = groups.map((g, i) => {
+    const catLabel = catById(g.catId)?.label || g.catId;
+    const bankLabel = bankById(g.banco).label;
+    const formaLabel = FORMAS_PAGAMENTO[g.forma] || g.forma;
+    const bankColor = bankById(g.banco).color;
     return `<div class="legend-row">
-      <span class="tag"><span class="legend-dot" style="background:${g.color}"></span>${escapeHtml(g.label)}${creditTag}</span>
+      <span class="tag"><span class="legend-dot" style="background:${colors[i]}"></span>${escapeHtml(catLabel)}<span class="cc-origin-tag" style="background:${bankColor}22;color:${bankColor}">${escapeHtml(bankLabel)} · ${escapeHtml(formaLabel)}</span></span>
       <span class="amt">${fmtBRL(g.total)} · ${total > 0 ? Math.round((g.total / total) * 100) : 0}%</span>
     </div>`;
   }).join("");
