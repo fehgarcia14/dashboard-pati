@@ -215,7 +215,7 @@ button {
 
 @media (max-width: 860px) {
   .auth-wrap { grid-template-columns: 1fr; }
-  .brand-panel { min-height: 340px; padding: 36px 28px; }
+  .brand-panel { min-height: 300px; padding: 32px 24px; }
   .brand-photo-img { object-position: center 20%; }
   .brand-panel-overlay {
     background: linear-gradient(
@@ -225,6 +225,8 @@ button {
       rgba(74, 21, 48, 0.80) 100%
     );
   }
+  .swatch-row { margin-top: 20px; }
+  .swatch { font-size: 0.68rem; padding: 5px 10px; }
 }
 
 .brand-panel {
@@ -1641,31 +1643,176 @@ tbody tr:hover { background: var(--surface-2); }
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* ---- Mobile responsive fine-tuning ---- */
+/* ================================================================
+   MOBILE RESPONSIVE — COMPLETE OVERHAUL
+   Breakpoints: 900 (tablet), 560 (large phone), 400 (small phone)
+   ================================================================ */
+
+/* -- Touch targets: minimum 44px for all interactive elements -- */
+@media (pointer: coarse) {
+  .icon-btn { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .btn-sm { min-height: 44px; padding: 10px 16px; }
+  .pill-filter { min-height: 44px; display: inline-flex; align-items: center; }
+  .nav-item { min-height: 44px; }
+  .toggle-pill { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .status-select { min-height: 44px; }
+  .filter-bar select { min-height: 44px; }
+}
+
+/* -- Prevent iOS zoom on input focus (font-size >= 16px) -- */
+@media (max-width: 900px) {
+  .field input, .field select, .filter-bar select, .status-select {
+    font-size: 16px;
+  }
+}
+
+/* ---- 900px: Tablet & sidebar collapse ---- */
 @media (max-width: 900px) {
   .greeting-text { font-size: 1.3rem; }
   .health-labels { font-size: 0.65rem; }
+
+  .main-header { flex-direction: column; align-items: flex-start; }
+  .filter-bar { width: 100%; }
+
+  .legend-row { flex-wrap: wrap; gap: 4px; }
+  .legend-row .tag { flex: 1; min-width: 0; flex-wrap: wrap; }
+  .legend-row .amt { font-size: 0.78rem; }
 }
+
+/* ---- 768px: Tablet portrait ---- */
+@media (max-width: 768px) {
+  .brand-hero h1 { font-size: 1.6rem; }
+}
+
+/* ---- 560px: Large phone ---- */
 @media (max-width: 560px) {
-  .overview-actions { flex-direction: column; }
-  .overview-actions .btn-action { width: 100%; }
-}
-@media (max-width: 400px) {
-  .main { padding: 68px 12px 60px; }
-  .main-header { gap: 10px; margin-bottom: 20px; }
+  .main { padding: 68px 14px 80px; }
   .main-header h1 { font-size: 1.4rem; }
+  .main-header .sub { font-size: 0.82rem; }
+
   .filter-bar { gap: 6px; }
-  .filter-bar select { padding: 7px 10px; font-size: 0.82rem; }
-  .kpi-ticket { padding: 16px; }
-  .kpi-ticket .value { font-size: 1.2rem; }
-  .panel { padding: 16px; }
+  .filter-bar select { padding: 8px 10px; font-size: 16px; flex: 1; min-width: 0; }
+
+  .kpi-grid, .kpi-grid-5 { grid-template-columns: 1fr; gap: 12px; }
+  .kpi-ticket { padding: 16px 18px; }
+  .kpi-ticket .value { font-size: 1.25rem; word-break: break-all; }
+
+  .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+
+  .panel { padding: 16px; margin-bottom: 14px; }
   .panel-head h3 { font-size: 0.95rem; }
-  .grid-2 { gap: 12px; }
-  .modal { padding: 20px; margin: 10px; }
+  .panel-head { gap: 6px; }
+
+  .overview-actions { flex-direction: column; }
+  .overview-actions .btn-action { width: 100%; min-height: 48px; }
+
+  .greeting-banner { padding: 18px 18px; }
+  .greeting-text { font-size: 1.15rem; }
+  .greeting-sub { font-size: 0.84rem; }
+
+  .health-reason { min-width: 0; font-size: 0.82rem; }
+  .health-badge { font-size: 0.76rem; padding: 4px 12px; }
+
+  .date-reminder { padding: 12px 14px; font-size: 0.84rem; }
+
+  .entry-grid { grid-template-columns: 1fr; }
+
+  .bank-cards-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .bank-card { padding: 12px; }
+  .bank-card .bank-value { font-size: 0.95rem; }
+
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: 100%;
+    width: 100%;
+    border-radius: var(--radius) var(--radius) 0 0;
+    max-height: 92vh;
+    padding: 24px 20px;
+    margin: 0;
+  }
+  .modal-backdrop.active .modal { transform: translateY(0); }
+
+  .btn { min-height: 48px; font-size: 1rem; }
+  .btn-block { min-height: 50px; }
+
+  .toggle-group { gap: 6px; }
+  .toggle-pill { padding: 12px 8px; font-size: 0.84rem; }
+
   .metas-grid { grid-template-columns: 1fr; }
   .year-comp-grid { grid-template-columns: 1fr; }
-  .greeting-banner { padding: 18px 20px; }
-  .greeting-text { font-size: 1.2rem; }
-  .greeting-sub { font-size: 0.85rem; }
-  .health-reason { min-width: 0; }
+
+  .entries-filters { flex-wrap: wrap; }
+  .pill-filter { font-size: 0.8rem; padding: 8px 12px; }
+
+  .agenda-item { flex-wrap: wrap; }
+  .agenda-item .row-actions { width: 100%; justify-content: flex-end; margin-top: 6px; }
+
+  .a-receber-item { flex-wrap: wrap; }
+  .a-receber-item .btn-sm { width: 100%; margin-top: 8px; justify-content: center; }
+
+  .parcelamento-item { flex-wrap: wrap; }
+  .parcelamento-item .parc-progress { width: 100%; margin-top: 8px; }
+
+  .proximo-item { flex-wrap: wrap; }
+
+  .conta-vencer-item { flex-wrap: wrap; }
+
+  .fab { bottom: 20px; right: 20px; width: 52px; height: 52px; font-size: 1.4rem; }
+
+  .toast { bottom: 80px; font-size: 0.84rem; max-width: calc(100vw - 32px); text-align: center; }
+
+  .inv-bank-header { font-size: 0.82rem; padding: 10px 14px; }
+  .inv-product-row { font-size: 0.82rem; padding: 8px 14px; }
+
+  .calc-result-value { font-size: 1.4rem; }
+}
+
+/* ---- 400px: Small phone ---- */
+@media (max-width: 400px) {
+  .main { padding: 64px 10px 80px; }
+  .main-header { margin-bottom: 16px; }
+  .main-header h1 { font-size: 1.25rem; }
+
+  .kpi-ticket .value { font-size: 1.1rem; }
+  .kpi-ticket .label { font-size: 0.68rem; }
+
+  .panel { padding: 14px; }
+  .panel-head h3 { font-size: 0.9rem; }
+
+  .modal { padding: 20px 16px; }
+
+  .greeting-banner { padding: 14px 16px; }
+  .greeting-text { font-size: 1.05rem; }
+  .greeting-sub { font-size: 0.8rem; }
+
+  .filter-bar select { font-size: 16px; padding: 7px 8px; }
+
+  .bank-cards-grid { grid-template-columns: 1fr; }
+
+  .swatch { font-size: 0.65rem; padding: 4px 8px; }
+  .swatch-row { gap: 6px; margin-top: 14px; }
+
+  table { font-size: 0.8rem; }
+  thead th { font-size: 0.68rem; padding: 0 6px 8px; }
+  tbody td { padding: 10px 6px; }
+
+  .legend-row { font-size: 0.8rem; }
+  .cc-origin-tag { font-size: 0.62rem; padding: 1px 6px; }
+
+  .auth-panel { padding: 28px 16px; }
+  .auth-card h2 { font-size: 1.3rem; }
+
+  .brand-panel { padding: 24px 18px; min-height: 260px; }
+  .brand-hero h1 { font-size: 1.35rem; }
+  .brand-hero p { font-size: 0.88rem; margin-top: 12px; }
+  .brand-footnote { font-size: 0.72rem; }
+  .brand-hero .eyebrow { font-size: 0.68rem; margin-bottom: 12px; }
+}
+
+/* -- Scroll-snapping for field focus on mobile keyboards -- */
+@media (max-width: 560px) {
+  .modal { scroll-behavior: smooth; }
+  .field input:focus, .field select:focus {
+    scroll-margin-bottom: 120px;
+  }
 }

@@ -1993,6 +1993,14 @@ function initModals() {
   initCalcPreco();
   initShareCard();
   initConfettiToggle();
+
+  if (window.innerWidth <= 560) {
+    document.addEventListener("focusin", (e) => {
+      if (e.target.closest(".modal") && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) {
+        setTimeout(() => e.target.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+      }
+    });
+  }
 }
 
 function closeModal(id) {
