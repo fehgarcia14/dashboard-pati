@@ -555,8 +555,10 @@ function renderOverviewKPIs() {
     document.getElementById("kpi-top-desp-amt").textContent = "";
   }
 
-  const saldoAcum = totalOf(allEntries.filter(e => e.movimento === "entrada")) -
-                     totalOf(allEntries.filter(e => e.movimento === "saida"));
+  const saldoAcum = allEntries.reduce((acc, e) => {
+    const { delta } = entrySaldoImpact(e);
+    return acc + delta;
+  }, 0);
   animateKPI("kpi-patrimonio", saldoAcum);
 }
 
@@ -739,7 +741,7 @@ function renderPatrimonioChart() {
     return allEntries.reduce((acc, e) => {
       const ed = parseDate(e.data);
       if (ed > cutoff) return acc;
-      return acc + (e.movimento === "entrada" ? Number(e.valor || 0) : -Number(e.valor || 0));
+      return acc + entrySaldoImpact(e).delta;
     }, 0);
   });
 
@@ -811,6 +813,15 @@ function renderContasVencer() {
   }).join("");
 }
 
+function entrySaldoImpact(e) {
+  const val = Number(e.valor || 0);
+  if (e.formaPagamento === "credito" && e.movimento === "saida") {
+    if (e.statusPagamento !== "pago") return { banco: null, delta: 0 };
+    return { banco: e.bancoPagamento || e.banco || "outro", delta: -val };
+  }
+  return { banco: e.banco || "outro", delta: e.movimento === "entrada" ? val : -val };
+}
+
 function renderBankCards() {
   const periodEl = document.getElementById("bank-cards-period");
   const totalEl = document.getElementById("bank-cards-total");
@@ -821,9 +832,8 @@ function renderBankCards() {
   BANKS.forEach(b => { periodSaldo[b.id] = 0; totalSaldo[b.id] = 0; });
 
   cur.forEach(e => {
-    const bk = e.banco || "outro";
-    const val = Number(e.valor || 0);
-    periodSaldo[bk] = (periodSaldo[bk] || 0) + (e.movimento === "entrada" ? val : -val);
+    const { banco: bk, delta } = entrySaldoImpact(e);
+    if (bk) periodSaldo[bk] = (periodSaldo[bk] || 0) + delta;
   });
 
   const range = getRange(filterState.type, filterState.value, filterState.year);
@@ -836,9 +846,8 @@ function renderBankCards() {
   });
 
   allEntries.forEach(e => {
-    const bk = e.banco || "outro";
-    const val = Number(e.valor || 0);
-    totalSaldo[bk] = (totalSaldo[bk] || 0) + (e.movimento === "entrada" ? val : -val);
+    const { banco: bk, delta } = entrySaldoImpact(e);
+    if (bk) totalSaldo[bk] = (totalSaldo[bk] || 0) + delta;
   });
 
   allInvestimentos.forEach(inv => {
@@ -971,6 +980,8 @@ function renderCreditCard() {
       const st = e.statusPagamento || "pago";
       const parcelaBadge = e.parcelaTotal > 1 ? `<span class="parcela-badge">${e.parcelaAtual}/${e.parcelaTotal}</span>` : "";
       const descText = e.descricao ? escapeHtml(e.descricao) : "—";
+      const pgtoBank = (st === "pago" && e.bancoPagamento) ? bankById(e.bancoPagamento) : null;
+      const pgtoTag = pgtoBank ? `<span class="cat-pill" style="background:${pgtoBank.color}22;color:${pgtoBank.color};font-size:0.68rem;margin-left:4px" title="Pago com ${pgtoBank.label}">${pgtoBank.label}</span>` : "";
       return `<tr>
         <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
         <td><span class="cat-pill" style="background:${cat?.color}22;color:${cat?.color}">${cat?.label || e.categoria}</span></td>
@@ -978,11 +989,11 @@ function renderCreditCard() {
         <td>${descText}${parcelaBadge}</td>
         <td class="amt-cell negative">−${fmtBRL(e.valor)}</td>
         <td>
-          <select class="status-select ${st}" data-cc-status="${e.id}">
+          <select class="status-select ${st}" data-cc-status="${e.id}" data-cc-old-status="${st}" data-cc-banco="${e.banco}">
             <option value="pago" ${st==="pago"?"selected":""}>Pago</option>
             <option value="pendente" ${st==="pendente"?"selected":""}>Pendente</option>
             <option value="atrasado" ${st==="atrasado"?"selected":""}>Atrasado</option>
-          </select>
+          </select>${pgtoTag}
         </td>
       </tr>`;
     }).join("");
@@ -990,9 +1001,25 @@ function renderCreditCard() {
     tbody.querySelectorAll("[data-cc-status]").forEach(sel => {
       sel.addEventListener("change", async () => {
         const newSt = sel.value;
-        sel.className = "status-select " + newSt;
-        await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", sel.dataset.ccStatus), { statusPagamento: newSt });
-        showToast("Status atualizado.");
+        const oldSt = sel.dataset.ccOldStatus;
+        const entryId = sel.dataset.ccStatus;
+        const entryBanco = sel.dataset.ccBanco;
+
+        if (newSt === "pago" && oldSt !== "pago") {
+          const bancoPagamento = await promptBancoPagamento(entryBanco);
+          if (!bancoPagamento) { sel.value = oldSt; return; }
+          sel.className = "status-select pago";
+          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: "pago", bancoPagamento });
+          showToast("Fatura paga.");
+        } else if (newSt !== "pago" && oldSt === "pago") {
+          sel.className = "status-select " + newSt;
+          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: newSt, bancoPagamento: null });
+          showToast("Status revertido — valor devolvido ao banco.");
+        } else {
+          sel.className = "status-select " + newSt;
+          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: newSt });
+          showToast("Status atualizado.");
+        }
       });
     });
   }
@@ -1046,6 +1073,31 @@ function renderParcelamentosAtivos() {
       </div>
     </div>`;
   }).join("");
+}
+
+function promptBancoPagamento(defaultBanco) {
+  return new Promise(resolve => {
+    const sel = document.getElementById("banco-pagamento-select");
+    sel.innerHTML = BANKS.map(b => `<option value="${b.id}">${b.label}</option>`).join("");
+    sel.value = defaultBanco || "nubank";
+    document.getElementById("modal-banco-pagamento").classList.add("active");
+
+    const cleanup = () => {
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      closeBtn.removeEventListener("click", onCancel);
+      closeModal("modal-banco-pagamento");
+    };
+    const onConfirm = () => { cleanup(); resolve(sel.value); };
+    const onCancel = () => { cleanup(); resolve(null); };
+
+    const confirmBtn = document.getElementById("banco-pgto-confirmar");
+    const cancelBtn = document.getElementById("banco-pgto-cancelar");
+    const closeBtn = document.querySelector('#modal-banco-pagamento .modal-close');
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+    closeBtn.addEventListener("click", onCancel);
+  });
 }
 
 // ============================================================
@@ -1905,8 +1957,27 @@ async function handleEntrySubmit(e) {
   btn.textContent = "Salvando...";
 
   try {
+    const needsBancoPgto = formaPagamento === "credito" && mov === "saida" && statusPagamento === "pago";
+    let bancoPagamento = null;
+    if (needsBancoPgto && !editingEntryId) {
+      bancoPagamento = await promptBancoPagamento(banco);
+      if (!bancoPagamento) { btn.disabled = false; btn.textContent = "Salvar lançamento"; return; }
+    }
+
     if (editingEntryId) {
+      const existing = allEntries.find(x => x.id === editingEntryId);
       const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null };
+      if (formaPagamento === "credito" && mov === "saida") {
+        if (statusPagamento === "pago" && existing?.statusPagamento !== "pago") {
+          const bp = await promptBancoPagamento(banco);
+          if (!bp) { btn.disabled = false; btn.textContent = "Salvar alterações"; return; }
+          payload.bancoPagamento = bp;
+        } else if (statusPagamento !== "pago") {
+          payload.bancoPagamento = null;
+        } else {
+          payload.bancoPagamento = existing?.bancoPagamento || null;
+        }
+      }
       await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", editingEntryId), payload);
       showToast("Lançamento atualizado.");
     } else if (isParcelado && numParcelas >= 2) {
@@ -1920,19 +1991,21 @@ async function handleEntrySubmit(e) {
         const parcelaDateStr = parcelaDate.toISOString().slice(0, 10);
         const isLast = i === numParcelas - 1;
         const valorParcela = isLast ? +(valor - valorBase * (numParcelas - 1)).toFixed(2) : valorBase;
+        const parcSt = i === 0 ? statusPagamento : "pendente";
 
         const payload = {
           movimento: mov, tipo, valor: valorParcela, data: parcelaDateStr, categoria, banco,
-          formaPagamento, statusPagamento: i === 0 ? statusPagamento : "pendente",
+          formaPagamento, statusPagamento: parcSt,
           fixo, descricao, origemAgendaId: null, criadoEm: serverTimestamp(),
-          grupoParcelaId, parcelaAtual: i + 1, parcelaTotal: numParcelas, valorCompraOriginal: valor
+          grupoParcelaId, parcelaAtual: i + 1, parcelaTotal: numParcelas, valorCompraOriginal: valor,
+          bancoPagamento: (i === 0 && statusPagamento === "pago") ? bancoPagamento : null
         };
         promises.push(addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), payload));
       }
       await Promise.all(promises);
       showToast(`Compra parcelada em ${numParcelas}x registrada.`);
     } else {
-      const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null, criadoEm: serverTimestamp() };
+      const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null, criadoEm: serverTimestamp(), bancoPagamento };
       await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), payload);
       showToast("Lançamento adicionado.");
     }
