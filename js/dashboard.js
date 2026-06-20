@@ -892,9 +892,10 @@ function renderEntriesTable() {
     const isEntrada = e.movimento === "entrada";
     const forma = FORMAS_PAGAMENTO[e.formaPagamento] || e.formaPagamento || "—";
     const fixoBadge = (e.fixo && e.movimento === "saida") ? '<span class="fixo-badge" title="Gasto fixo">📌</span>' : "";
+    const parcelaBadge = e.parcelaTotal > 1 ? `<span class="parcela-badge">${e.parcelaAtual}/${e.parcelaTotal}</span>` : "";
     return `<tr>
       <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
-      <td><span class="mov-pill ${e.movimento}">${isEntrada ? "Entrada" : "Saída"}</span></td>
+      <td><span class="mov-pill ${e.movimento}">${isEntrada ? "Entrada" : "Saída"}</span>${parcelaBadge}</td>
       <td><span class="cat-pill" style="background:${cat?.color}22;color:${cat?.color}">${cat?.label || e.categoria}</span></td>
       <td><span class="cat-pill" style="background:${bank.color}22;color:${bank.color}">${bank.label}</span></td>
       <td>${forma}${fixoBadge}</td>
@@ -913,12 +914,29 @@ function renderEntriesTable() {
     btn.addEventListener("click", () => openEntryModal(allEntries.find(e => e.id === btn.dataset.editEntry)));
   });
   tbody.querySelectorAll("[data-del-entry]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("Excluir este lançamento?")) return;
-      await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", btn.dataset.delEntry));
-      showToast("Lançamento excluído.");
-    });
+    btn.addEventListener("click", () => handleDeleteEntry(btn.dataset.delEntry));
   });
+}
+
+async function handleDeleteEntry(entryId) {
+  const entry = allEntries.find(e => e.id === entryId);
+  if (!entry) return;
+
+  if (entry.grupoParcelaId) {
+    const siblings = allEntries.filter(e => e.grupoParcelaId === entry.grupoParcelaId);
+    const choice = confirm(
+      `Esta é a parcela ${entry.parcelaAtual}/${entry.parcelaTotal} de uma compra de ${fmtBRL(entry.valorCompraOriginal)}.\n\n` +
+      `Clique OK para excluir TODAS as ${siblings.length} parcelas, ou Cancelar para não excluir nada.`
+    );
+    if (!choice) return;
+    const promises = siblings.map(s => deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", s.id)));
+    await Promise.all(promises);
+    showToast(`${siblings.length} parcelas excluídas.`);
+  } else {
+    if (!confirm("Excluir este lançamento?")) return;
+    await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId));
+    showToast("Lançamento excluído.");
+  }
 }
 
 // ============================================================
@@ -942,40 +960,92 @@ function renderCreditCard() {
   if (cur.length === 0) {
     tbody.innerHTML = "";
     document.getElementById("cc-empty").style.display = "block";
+  } else {
+    document.getElementById("cc-empty").style.display = "none";
+
+    const sorted = cur.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
+    tbody.innerHTML = sorted.map(e => {
+      const cat = catById(e.categoria);
+      const d = parseDate(e.data);
+      const bank = bankById(e.banco);
+      const st = e.statusPagamento || "pago";
+      const parcelaBadge = e.parcelaTotal > 1 ? `<span class="parcela-badge">${e.parcelaAtual}/${e.parcelaTotal}</span>` : "";
+      const descText = e.descricao ? escapeHtml(e.descricao) : "—";
+      return `<tr>
+        <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
+        <td><span class="cat-pill" style="background:${cat?.color}22;color:${cat?.color}">${cat?.label || e.categoria}</span></td>
+        <td><span class="cat-pill" style="background:${bank.color}22;color:${bank.color}">${bank.label}</span></td>
+        <td>${descText}${parcelaBadge}</td>
+        <td class="amt-cell negative">−${fmtBRL(e.valor)}</td>
+        <td>
+          <select class="status-select ${st}" data-cc-status="${e.id}">
+            <option value="pago" ${st==="pago"?"selected":""}>Pago</option>
+            <option value="pendente" ${st==="pendente"?"selected":""}>Pendente</option>
+            <option value="atrasado" ${st==="atrasado"?"selected":""}>Atrasado</option>
+          </select>
+        </td>
+      </tr>`;
+    }).join("");
+
+    tbody.querySelectorAll("[data-cc-status]").forEach(sel => {
+      sel.addEventListener("change", async () => {
+        const newSt = sel.value;
+        sel.className = "status-select " + newSt;
+        await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", sel.dataset.ccStatus), { statusPagamento: newSt });
+        showToast("Status atualizado.");
+      });
+    });
+  }
+
+  renderParcelamentosAtivos();
+}
+
+function renderParcelamentosAtivos() {
+  const gruposMap = {};
+  allEntries.forEach(e => {
+    if (!e.grupoParcelaId) return;
+    if (!gruposMap[e.grupoParcelaId]) gruposMap[e.grupoParcelaId] = [];
+    gruposMap[e.grupoParcelaId].push(e);
+  });
+
+  const ativos = Object.values(gruposMap).filter(parcelas => {
+    return parcelas.some(p => p.statusPagamento !== "pago");
+  });
+
+  const container = document.getElementById("parcelamentos-list");
+  const emptyEl = document.getElementById("parcel-empty");
+  const countEl = document.getElementById("parcel-count");
+
+  if (ativos.length === 0) {
+    container.innerHTML = "";
+    emptyEl.style.display = "block";
+    countEl.textContent = "";
     return;
   }
-  document.getElementById("cc-empty").style.display = "none";
+  emptyEl.style.display = "none";
+  countEl.textContent = `${ativos.length} parcelamento${ativos.length > 1 ? "s" : ""}`;
 
-  const sorted = cur.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
-  tbody.innerHTML = sorted.map(e => {
-    const cat = catById(e.categoria);
-    const d = parseDate(e.data);
-    const bank = bankById(e.banco);
-    const st = e.statusPagamento || "pago";
-    return `<tr>
-      <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
-      <td><span class="cat-pill" style="background:${cat?.color}22;color:${cat?.color}">${cat?.label || e.categoria}</span></td>
-      <td><span class="cat-pill" style="background:${bank.color}22;color:${bank.color}">${bank.label}</span></td>
-      <td>${e.descricao ? escapeHtml(e.descricao) : "—"}</td>
-      <td class="amt-cell negative">−${fmtBRL(e.valor)}</td>
-      <td>
-        <select class="status-select ${st}" data-cc-status="${e.id}">
-          <option value="pago" ${st==="pago"?"selected":""}>Pago</option>
-          <option value="pendente" ${st==="pendente"?"selected":""}>Pendente</option>
-          <option value="atrasado" ${st==="atrasado"?"selected":""}>Atrasado</option>
-        </select>
-      </td>
-    </tr>`;
+  container.innerHTML = ativos.map(parcelas => {
+    const sorted = parcelas.sort((a, b) => a.parcelaAtual - b.parcelaAtual);
+    const first = sorted[0];
+    const cat = catById(first.categoria);
+    const pagas = sorted.filter(p => p.statusPagamento === "pago").length;
+    const total = first.parcelaTotal;
+    const pct = Math.round((pagas / total) * 100);
+    const desc = first.descricao || cat?.label || "Compra parcelada";
+    return `<div class="parcelamento-item">
+      <div class="parc-info">
+        <strong>${escapeHtml(desc)}</strong>
+        <div class="parc-detail">${fmtBRL(first.valorCompraOriginal)} em ${total}x de ${fmtBRL(first.valor)}</div>
+      </div>
+      <div class="parc-progress">
+        <div class="parc-progress-track">
+          <div class="parc-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="parc-progress-label">${pagas}/${total}</span>
+      </div>
+    </div>`;
   }).join("");
-
-  tbody.querySelectorAll("[data-cc-status]").forEach(sel => {
-    sel.addEventListener("change", async () => {
-      const newSt = sel.value;
-      sel.className = "status-select " + newSt;
-      await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", sel.dataset.ccStatus), { statusPagamento: newSt });
-      showToast("Status atualizado.");
-    });
-  });
 }
 
 // ============================================================
@@ -1727,6 +1797,7 @@ function initEntryModal() {
       document.getElementById("entry-tipo-group").style.display = mov === "saida" ? "flex" : "none";
       document.getElementById("entry-fixo-group").style.display = mov === "saida" ? "block" : "none";
       populateEntryCategories();
+      updateParcelaVisibility();
     });
   });
 
@@ -1740,9 +1811,25 @@ function initEntryModal() {
 
   document.getElementById("entry-forma").addEventListener("change", (e) => {
     document.getElementById("entry-status-group").style.display = e.target.value === "credito" ? "block" : "none";
+    updateParcelaVisibility();
+  });
+
+  document.getElementById("entry-parcela-tipo").addEventListener("change", (e) => {
+    document.getElementById("entry-parcela-qtd-group").style.display = e.target.value === "parcelado" ? "block" : "none";
   });
 
   document.getElementById("entry-form").addEventListener("submit", handleEntrySubmit);
+}
+
+function updateParcelaVisibility() {
+  const mov = document.querySelector("#modal-entry [data-mov].active")?.dataset.mov || "entrada";
+  const forma = document.getElementById("entry-forma").value;
+  const show = mov === "saida" && forma === "credito" && !editingEntryId;
+  document.getElementById("entry-parcela-group").style.display = show ? "block" : "none";
+  if (!show) {
+    document.getElementById("entry-parcela-tipo").value = "avista";
+    document.getElementById("entry-parcela-qtd-group").style.display = "none";
+  }
 }
 
 function populateEntryCategories() {
@@ -1785,6 +1872,10 @@ function openEntryModal(entry) {
   const showStatus = (entry?.formaPagamento || "pix") === "credito";
   document.getElementById("entry-status-group").style.display = showStatus ? "block" : "none";
 
+  document.getElementById("entry-parcela-tipo").value = "avista";
+  document.getElementById("entry-parcela-qtd-group").style.display = "none";
+  updateParcelaVisibility();
+
   document.getElementById("modal-entry").classList.add("active");
 }
 
@@ -1803,6 +1894,10 @@ async function handleEntrySubmit(e) {
   const fixo = mov === "saida" ? document.getElementById("entry-fixo").checked : false;
   const descricao = document.getElementById("entry-descricao").value.trim();
 
+  const parcelaTipo = document.getElementById("entry-parcela-tipo").value;
+  const isParcelado = !editingEntryId && mov === "saida" && formaPagamento === "credito" && parcelaTipo === "parcelado";
+  const numParcelas = isParcelado ? Number(document.getElementById("entry-parcela-qtd").value) : 1;
+
   if (!valor || valor <= 0) { errEl.textContent = "Informe um valor válido."; return; }
   if (!categoria) { errEl.textContent = "Selecione uma categoria."; return; }
 
@@ -1810,12 +1905,34 @@ async function handleEntrySubmit(e) {
   btn.textContent = "Salvando...";
 
   try {
-    const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null };
     if (editingEntryId) {
+      const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null };
       await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", editingEntryId), payload);
       showToast("Lançamento atualizado.");
+    } else if (isParcelado && numParcelas >= 2) {
+      const grupoParcelaId = crypto.randomUUID();
+      const baseDate = parseDate(data);
+      const valorBase = Math.floor((valor / numParcelas) * 100) / 100;
+      const promises = [];
+
+      for (let i = 0; i < numParcelas; i++) {
+        const parcelaDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate());
+        const parcelaDateStr = parcelaDate.toISOString().slice(0, 10);
+        const isLast = i === numParcelas - 1;
+        const valorParcela = isLast ? +(valor - valorBase * (numParcelas - 1)).toFixed(2) : valorBase;
+
+        const payload = {
+          movimento: mov, tipo, valor: valorParcela, data: parcelaDateStr, categoria, banco,
+          formaPagamento, statusPagamento: i === 0 ? statusPagamento : "pendente",
+          fixo, descricao, origemAgendaId: null, criadoEm: serverTimestamp(),
+          grupoParcelaId, parcelaAtual: i + 1, parcelaTotal: numParcelas, valorCompraOriginal: valor
+        };
+        promises.push(addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), payload));
+      }
+      await Promise.all(promises);
+      showToast(`Compra parcelada em ${numParcelas}x registrada.`);
     } else {
-      payload.criadoEm = serverTimestamp();
+      const payload = { movimento: mov, tipo, valor, data, categoria, banco, formaPagamento, statusPagamento, fixo, descricao, origemAgendaId: null, criadoEm: serverTimestamp() };
       await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), payload);
       showToast("Lançamento adicionado.");
     }

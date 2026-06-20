@@ -293,6 +293,17 @@
           Lançamentos com forma de pagamento "Crédito" aparecerão aqui.
         </div>
       </div>
+      <div class="panel" id="panel-parcelamentos">
+        <div class="panel-head">
+          <h3>Parcelamentos em andamento</h3>
+          <span class="hint" id="parcel-count"></span>
+        </div>
+        <div id="parcelamentos-list"></div>
+        <div class="empty-state" id="parcel-empty" style="display:none;">
+          <span class="empty-icon">💳</span>
+          <span class="display">Nenhum parcelamento ativo</span>
+        </div>
+      </div>
     </section>
 
     <!-- ===================== INVESTIMENTOS ===================== -->
@@ -568,6 +579,34 @@
           <option value="pendente">Pendente</option>
           <option value="atrasado">Atrasado</option>
         </select>
+      </div>
+
+      <div id="entry-parcela-group" style="display:none;">
+        <div class="entry-grid">
+          <div class="field">
+            <label for="entry-parcela-tipo">Parcelamento</label>
+            <select id="entry-parcela-tipo">
+              <option value="avista">À vista</option>
+              <option value="parcelado">Parcelado</option>
+            </select>
+          </div>
+          <div class="field" id="entry-parcela-qtd-group" style="display:none;">
+            <label for="entry-parcela-qtd">Parcelas</label>
+            <select id="entry-parcela-qtd">
+              <option value="2">2x</option>
+              <option value="3">3x</option>
+              <option value="4">4x</option>
+              <option value="5">5x</option>
+              <option value="6">6x</option>
+              <option value="7">7x</option>
+              <option value="8">8x</option>
+              <option value="9">9x</option>
+              <option value="10">10x</option>
+              <option value="11">11x</option>
+              <option value="12">12x</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div id="entry-fixo-group" style="display:none;">

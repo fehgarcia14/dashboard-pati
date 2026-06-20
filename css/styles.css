@@ -1276,6 +1276,71 @@ tbody tr:hover { background: var(--surface-2); }
   font-size: 0.88rem;
 }
 
+/* ---- Parcela badge ---- */
+.parcela-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+/* ---- Parcelamentos em andamento ---- */
+.parcelamento-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  margin-bottom: 8px;
+  font-size: 0.86rem;
+  gap: 12px;
+  transition: transform .1s ease;
+}
+.parcelamento-item:hover { transform: translateX(2px); }
+.parcelamento-item .parc-info { flex: 1; }
+.parcelamento-item .parc-info strong { font-weight: 600; }
+.parcelamento-item .parc-detail {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.parcelamento-item .parc-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.parc-progress-track {
+  width: 60px;
+  height: 6px;
+  background: var(--surface);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.parc-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width .3s ease;
+}
+.parc-progress-label {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.parcelamento-item .parc-valor {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* ---- Greeting banner ---- */
 .greeting-banner {
   margin-bottom: 24px;
