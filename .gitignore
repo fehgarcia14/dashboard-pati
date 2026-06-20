@@ -5,3 +5,4 @@ playwright-report/
 package-lock.json
 take-screenshots.js
 verify-modal.js
+generate-og-banner.js
