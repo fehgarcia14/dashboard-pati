@@ -45,6 +45,10 @@
         <span id="theme-label">Modo claro</span>
         <span class="knob"></span>
       </button>
+      <button class="theme-toggle" id="confetti-toggle">
+        <span id="confetti-label">Animações ✓</span>
+        <span class="knob"></span>
+      </button>
       <button class="logout-link" id="logout-btn">Sair da conta</button>
     </div>
   </aside>
@@ -73,6 +77,41 @@
 
     <!-- ===================== VISÃO GERAL ===================== -->
     <section class="view active" id="view-overview">
+
+      <div class="greeting-banner" id="greeting-banner">
+        <h2 class="greeting-text" id="greeting-text">Bom dia</h2>
+        <p class="greeting-sub" id="greeting-sub">Carregando...</p>
+      </div>
+
+      <div id="date-reminder" class="date-reminder" style="display:none;"></div>
+
+      <div class="overview-actions">
+        <button class="btn btn-ghost btn-action" id="btn-calc-preco" title="Calcular preço de serviço">🧮 Calcular preço</button>
+        <button class="btn btn-ghost btn-action" id="btn-share-month" title="Compartilhar resultado do mês">📤 Compartilhar mês</button>
+      </div>
+
+      <div class="health-indicator panel" id="health-indicator">
+        <div class="panel-head">
+          <h3>Saúde financeira do mês</h3>
+        </div>
+        <div class="health-bar-container">
+          <div class="health-bar-track">
+            <div class="health-bar-fill" id="health-bar-fill"></div>
+            <div class="health-bar-pointer" id="health-bar-pointer"></div>
+          </div>
+          <div class="health-labels">
+            <span>Apertado</span>
+            <span>Estável</span>
+            <span>Saudável</span>
+            <span>Excelente</span>
+          </div>
+        </div>
+        <div class="health-status" id="health-status">
+          <span class="health-badge" id="health-badge">—</span>
+          <span class="health-reason" id="health-reason"></span>
+        </div>
+      </div>
+
       <div class="kpi-grid kpi-grid-5">
         <div class="kpi-ticket accent-sage">
           <div class="label">Receitas no período</div>
@@ -745,6 +784,79 @@
   </div>
 </div>
 
+<!-- MODAL: Calculadora de Preço -->
+<div class="modal-backdrop" id="modal-calc-preco">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>🧮 Calcular preço de serviço</h3>
+      <button class="modal-close" data-close="modal-calc-preco">&times;</button>
+    </div>
+    <form id="calc-preco-form" onsubmit="return false;">
+      <div class="field">
+        <label for="calc-servico">Nome do serviço</label>
+        <input type="text" id="calc-servico" placeholder="Ex: Limpeza de pele completa" />
+      </div>
+      <div class="field">
+        <label for="calc-custo">Custo dos produtos usados (R$)</label>
+        <input type="number" id="calc-custo" step="0.01" min="0" value="0" />
+      </div>
+      <div class="entry-grid">
+        <div class="field">
+          <label for="calc-tempo">Tempo gasto (minutos)</label>
+          <input type="number" id="calc-tempo" min="0" value="60" />
+        </div>
+        <div class="field">
+          <label for="calc-hora">Valor da sua hora (R$, opcional)</label>
+          <input type="number" id="calc-hora" step="0.01" min="0" value="0" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="calc-margem">Margem de lucro desejada (%)</label>
+        <input type="number" id="calc-margem" step="1" min="1" max="99" value="45" />
+        <span class="calc-hint">Quanto do preço final fica pra você como lucro</span>
+      </div>
+      <button type="button" class="btn btn-primary btn-block" id="calc-btn-calcular">Calcular</button>
+      <div class="calc-result" id="calc-result" style="display:none;">
+        <div class="calc-result-main">
+          <span class="calc-result-label">Preço sugerido</span>
+          <span class="calc-result-value mono" id="calc-preco-sugerido">R$ 0,00</span>
+        </div>
+        <div class="calc-result-detail">
+          <div class="calc-detail-row">
+            <span>Custo total</span>
+            <span class="mono" id="calc-custo-total">R$ 0,00</span>
+          </div>
+          <div class="calc-detail-row">
+            <span>Seu lucro líquido</span>
+            <span class="mono sage" id="calc-lucro">R$ 0,00</span>
+          </div>
+          <p class="calc-explain" id="calc-explain"></p>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Compartilhar resultado -->
+<div class="modal-backdrop" id="modal-share">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>📤 Resultado do mês</h3>
+      <button class="modal-close" data-close="modal-share">&times;</button>
+    </div>
+    <div class="share-options">
+      <label class="checkbox-label">
+        <input type="checkbox" id="share-show-values" /> Mostrar valores financeiros no card
+      </label>
+    </div>
+    <div class="share-preview-wrap">
+      <canvas id="share-canvas" width="600" height="400"></canvas>
+    </div>
+    <button class="btn btn-primary btn-block" id="share-download">Baixar imagem</button>
+  </div>
+</div>
+
+<canvas id="confetti-canvas"></canvas>
 <div class="toast" id="toast"></div>
 
 <script src="js/lib/chart.umd.min.js"></script>

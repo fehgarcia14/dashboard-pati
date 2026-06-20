@@ -564,6 +564,9 @@ function renderOverviewKPIs() {
 // OVERVIEW — Charts (FIXED: uses setTimeout instead of RAF)
 // ============================================================
 function renderOverviewCharts() {
+  renderGreeting();
+  renderHealthIndicator();
+  renderDateReminder();
   renderBankCards();
   renderContasVencer();
 
@@ -1695,6 +1698,9 @@ function initModals() {
   initInvModal();
   initMetaModal();
   initAporteModal();
+  initCalcPreco();
+  initShareCard();
+  initConfettiToggle();
 }
 
 function closeModal(id) {
@@ -2156,13 +2162,400 @@ async function handleAporteSubmit(e) {
 }
 
 // ============================================================
-// TOAST
+// SAUDAÇÃO INTELIGENTE (Parte 1)
+// ============================================================
+function renderGreeting() {
+  const now = new Date();
+  const h = now.getHours();
+  const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+  const nome = (userProfile.nome || "").split(" ")[0] || "";
+  document.getElementById("greeting-text").textContent = nome ? `${saudacao}, ${nome}` : saudacao;
+
+  const frases = [];
+  const ontem = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const ontemStr = ontem.toISOString().slice(0, 10);
+  const hojeStr = todayStr();
+
+  const fatOntem = totalOf(allEntries.filter(e => e.data === ontemStr && e.movimento === "entrada"));
+  if (fatOntem > 0) frases.push(`Ontem você faturou ${fmtBRL(fatOntem)}`);
+
+  const atendHoje = allAtendimentos.filter(a => a.data === hojeStr && a.status === "agendado");
+  if (atendHoje.length > 0) frases.push(`Você tem ${atendHoje.length} atendimento${atendHoje.length > 1 ? "s" : ""} agendado${atendHoje.length > 1 ? "s" : ""} pra hoje`);
+
+  const fatHoje = totalOf(allEntries.filter(e => e.data === hojeStr && e.movimento === "entrada"));
+  if (fatHoje > 0 && fatOntem === 0) frases.push(`Hoje já faturou ${fmtBRL(fatHoje)}`);
+
+  if (frases.length === 0) {
+    const msgs = ["Pronta pra mais um dia de sucesso?", "Bora organizar as finanças!", "Seu painel está atualizado."];
+    frases.push(msgs[now.getDate() % msgs.length]);
+  }
+
+  document.getElementById("greeting-sub").textContent = frases.join(" · ");
+}
+
+// ============================================================
+// INDICADOR DE SAÚDE FINANCEIRA (Parte 3)
+// ============================================================
+function renderHealthIndicator() {
+  const now = new Date();
+  const range = getRange("month", now.getMonth(), now.getFullYear());
+  const monthEntries = allEntries.filter(e => inRange(e.data, range));
+  const receita = totalOf(monthEntries.filter(e => e.movimento === "entrada"));
+  const despesa = totalOf(monthEntries.filter(e => e.movimento === "saida"));
+  const saldo = receita - despesa;
+
+  const despFixa = totalOf(monthEntries.filter(e => e.movimento === "saida" && e.fixo));
+  const pctFixo = receita > 0 ? (despFixa / receita) * 100 : 0;
+
+  const last3 = [];
+  for (let i = 0; i < 3; i++) {
+    const m = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const r = getRange("month", m.getMonth(), m.getFullYear());
+    const me = allEntries.filter(e => inRange(e.data, r));
+    const rec = totalOf(me.filter(e => e.movimento === "entrada"));
+    const dep = totalOf(me.filter(e => e.movimento === "saida"));
+    if (rec - dep > 0) last3.push(rec - dep);
+  }
+  const metaSugerida = last3.length > 0 ? (last3.reduce((a, b) => a + b, 0) / last3.length) * 0.2 : 0;
+  const aporteMes = totalOf(allInvestimentos.filter(e => {
+    const d = parseDate(e.data);
+    return e.movimento === "aporte" && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }));
+  const aporteOk = metaSugerida <= 0 || aporteMes >= metaSugerida;
+
+  let score = 0;
+  const reasons = [];
+  if (saldo > 0) { score += 40; reasons.push("Saldo positivo"); }
+  else if (saldo === 0) { score += 15; reasons.push("Saldo zerado"); }
+  else { reasons.push("Saldo negativo"); }
+
+  if (pctFixo <= 30) { score += 25; }
+  else if (pctFixo <= 50) { score += 15; reasons.push("gastos fixos em " + Math.round(pctFixo) + "% da receita"); }
+  else if (receita > 0) { reasons.push("gastos fixos consumindo " + Math.round(pctFixo) + "% da receita"); }
+
+  if (aporteOk && metaSugerida > 0) { score += 25; reasons.push("aportes dentro da meta"); }
+  else if (aporteMes > 0) { score += 10; reasons.push("aportou abaixo da meta sugerida"); }
+  else if (metaSugerida > 0) { reasons.push("sem aportes no mês"); }
+
+  if (receita > 0 && despesa / receita < 0.7) score += 10;
+
+  const clamped = Math.max(0, Math.min(100, score));
+  let nivel, nivelClass;
+  if (clamped < 25) { nivel = "Apertado"; nivelClass = "apertado"; }
+  else if (clamped < 50) { nivel = "Estável"; nivelClass = "estavel"; }
+  else if (clamped < 75) { nivel = "Saudável"; nivelClass = "saudavel"; }
+  else { nivel = "Excelente"; nivelClass = "excelente"; }
+
+  document.getElementById("health-bar-pointer").style.left = clamped + "%";
+  const badge = document.getElementById("health-badge");
+  badge.textContent = nivel;
+  badge.className = "health-badge " + nivelClass;
+  document.getElementById("health-reason").textContent = reasons.slice(0, 3).join(" · ");
+}
+
+// ============================================================
+// LEMBRETE DE DATAS FORTES (Parte 5)
+// ============================================================
+function renderDateReminder() {
+  const el = document.getElementById("date-reminder");
+  const now = new Date();
+  const year = now.getFullYear();
+
+  const carnavalDate = getCarnavalDate(year);
+  const carnavalDateNext = getCarnavalDate(year + 1);
+  const datas = [
+    { nome: "Dia das Mulheres", date: new Date(year, 2, 8) },
+    { nome: "Carnaval", date: carnavalDate },
+    { nome: "Dia das Mães", date: new Date(year, 4, getDiaDasMaes(year)) },
+    { nome: "Dia dos Namorados", date: new Date(year, 5, 12) },
+    { nome: "Dia dos Pais", date: new Date(year, 7, getDiaDosPais(year)) },
+    { nome: "Black Friday", date: new Date(year, 10, getBlackFriday(year)) },
+    { nome: "Natal", date: new Date(year, 11, 25) },
+    { nome: "Dia das Mulheres", date: new Date(year + 1, 2, 8) },
+    { nome: "Carnaval", date: carnavalDateNext },
+  ];
+
+  let closest = null;
+  let closestDays = Infinity;
+  for (const d of datas) {
+    const diff = Math.ceil((d.date - now) / (1000 * 60 * 60 * 24));
+    if (diff > 0 && diff <= 20 && diff < closestDays) {
+      closestDays = diff;
+      closest = d;
+    }
+  }
+
+  if (closest) {
+    el.style.display = "flex";
+    el.innerHTML = `<span class="dr-icon">📅</span><span class="dr-text">Faltam <strong>${closestDays} dia${closestDays > 1 ? "s" : ""}</strong> para o <strong>${closest.nome}</strong> — bom momento pra divulgar promoções!</span>`;
+  } else {
+    el.style.display = "none";
+  }
+}
+
+function getDiaDasMaes(year) {
+  const dow = new Date(year, 4, 1).getDay();
+  return dow === 0 ? 8 : 15 - dow;
+}
+function getDiaDosPais(year) {
+  const dow = new Date(year, 7, 1).getDay();
+  return dow === 0 ? 8 : 15 - dow;
+}
+function getBlackFriday(year) {
+  const d = new Date(year, 10, 1);
+  const dow = d.getDay();
+  const thanksgiving = 1 + (dow <= 4 ? (4 - dow) + 21 : (11 - dow) + 21);
+  return thanksgiving + 1;
+}
+function getCarnavalDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  const easter = new Date(year, month - 1, day);
+  return new Date(easter.getTime() - 47 * 24 * 60 * 60 * 1000);
+}
+
+// ============================================================
+// CALCULADORA DE PREÇO DE SERVIÇO (Parte 2)
+// ============================================================
+function initCalcPreco() {
+  document.getElementById("btn-calc-preco").addEventListener("click", () => {
+    document.getElementById("calc-result").style.display = "none";
+    document.getElementById("modal-calc-preco").classList.add("active");
+  });
+
+  document.getElementById("calc-btn-calcular").addEventListener("click", () => {
+    const custo = Number(document.getElementById("calc-custo").value) || 0;
+    const tempo = Number(document.getElementById("calc-tempo").value) || 0;
+    const valorHora = Number(document.getElementById("calc-hora").value) || 0;
+    const margem = Number(document.getElementById("calc-margem").value) || 45;
+
+    const custoMaoDeObra = (valorHora / 60) * tempo;
+    const custoTotal = custo + custoMaoDeObra;
+    const preco = custoTotal / (1 - margem / 100);
+    const lucro = preco - custoTotal;
+
+    document.getElementById("calc-preco-sugerido").textContent = fmtBRL(preco);
+    document.getElementById("calc-custo-total").textContent = fmtBRL(custoTotal);
+    document.getElementById("calc-lucro").textContent = fmtBRL(lucro);
+    document.getElementById("calc-explain").textContent =
+      `De cada ${fmtBRL(preco)} que você cobrar, ${fmtBRL(lucro)} fica pra você como lucro (${Math.round(margem)}%) e ${fmtBRL(custoTotal)} cobre os custos.`;
+    document.getElementById("calc-result").style.display = "block";
+  });
+}
+
+// ============================================================
+// CARD DE RESULTADO PRA COMPARTILHAR (Parte 4)
+// ============================================================
+function initShareCard() {
+  document.getElementById("btn-share-month").addEventListener("click", () => {
+    renderShareCanvas();
+    document.getElementById("modal-share").classList.add("active");
+  });
+
+  document.getElementById("share-show-values").addEventListener("change", () => renderShareCanvas());
+
+  document.getElementById("share-download").addEventListener("click", () => {
+    const canvas = document.getElementById("share-canvas");
+    const link = document.createElement("a");
+    const now = new Date();
+    link.download = `resultado-${MESES[now.getMonth()].toLowerCase()}-${now.getFullYear()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  });
+}
+
+function drawRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function renderShareCanvas() {
+  const canvas = document.getElementById("share-canvas");
+  const ctx = canvas.getContext("2d");
+  const w = 600, h = 400;
+  canvas.width = w;
+  canvas.height = h;
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const bgColor = isDark ? "#241A1E" : "#FAF5F2";
+  const textColor = isDark ? "#F4E9E6" : "#241A1D";
+  const softColor = isDark ? "#C2A9A6" : "#6E5C5A";
+  const primaryColor = isDark ? "#E2A8BE" : "#6B1F3D";
+  const goldColor = isDark ? "#D9B66B" : "#B8893E";
+
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, w, h);
+
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, "#4A1530");
+  grad.addColorStop(1, "#6B1F3D");
+  ctx.fillStyle = grad;
+  drawRoundRect(ctx, 20, 20, w - 40, 80, 14);
+  ctx.fill();
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "600 22px Fraunces, serif";
+  ctx.fillText("Ficha", 44, 58);
+
+  const now = new Date();
+  const mesAno = MESES_LONGOS[now.getMonth()] + " " + now.getFullYear();
+  ctx.font = "500 14px 'Work Sans', sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.textAlign = "right";
+  ctx.fillText(mesAno, w - 44, 58);
+  ctx.textAlign = "left";
+
+  const nome = (userProfile.nome || "").split(" ")[0] || "Profissional";
+  const monthAtend = allAtendimentos.filter(a => {
+    const d = parseDate(a.data);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && a.status === "realizado";
+  });
+  const qtd = monthAtend.length;
+  const showValues = document.getElementById("share-show-values").checked;
+
+  ctx.fillStyle = textColor;
+  ctx.font = "600 26px Fraunces, serif";
+  const destaque = qtd > 0 ? `Fechei o mês com ${qtd} atendimento${qtd !== 1 ? "s" : ""}!` : "Mais um mês de dedicação!";
+  ctx.fillText(destaque, 40, 150);
+
+  ctx.font = "400 15px 'Work Sans', sans-serif";
+  ctx.fillStyle = softColor;
+  ctx.fillText(`por ${nome}`, 40, 178);
+
+  let y = 220;
+  const drawStat = (label, value) => {
+    ctx.fillStyle = softColor;
+    ctx.font = "600 11px 'Work Sans', sans-serif";
+    ctx.fillText(label.toUpperCase(), 40, y);
+    ctx.fillStyle = textColor;
+    ctx.font = "600 20px 'IBM Plex Mono', monospace";
+    ctx.fillText(value, 40, y + 24);
+    y += 56;
+  };
+
+  drawStat("Atendimentos realizados", String(qtd));
+
+  if (showValues) {
+    const fat = totalOf(monthAtend);
+    drawStat("Faturamento do mês", fmtBRL(fat));
+    if (qtd > 0) drawStat("Ticket médio", fmtBRL(fat / qtd));
+  }
+
+  ctx.fillStyle = goldColor;
+  ctx.beginPath();
+  ctx.arc(w - 60, h - 50, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = softColor;
+  ctx.font = "400 12px 'Work Sans', sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("Gerado com Ficha", w - 40, h - 44);
+  ctx.textAlign = "left";
+}
+
+// ============================================================
+// FEEDBACK AO SALVAR — Confetti (Parte 6)
+// ============================================================
+let confettiEnabled = true;
+function initConfettiToggle() {
+  const saved = localStorage.getItem("ficha-confetti");
+  confettiEnabled = saved !== "off";
+  updateConfettiLabel();
+
+  document.getElementById("confetti-toggle").addEventListener("click", () => {
+    confettiEnabled = !confettiEnabled;
+    localStorage.setItem("ficha-confetti", confettiEnabled ? "on" : "off");
+    if (!confettiEnabled) document.documentElement.setAttribute("data-confetti", "off");
+    else document.documentElement.removeAttribute("data-confetti");
+    updateConfettiLabel();
+  });
+}
+function updateConfettiLabel() {
+  document.getElementById("confetti-label").textContent = confettiEnabled ? "Animações ✓" : "Animações ✗";
+  if (!confettiEnabled) document.documentElement.setAttribute("data-confetti", "off");
+}
+
+function fireConfetti() {
+  if (!confettiEnabled) return;
+  const canvas = document.getElementById("confetti-canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const colors = ["#6B1F3D", "#B8893E", "#4F6B5E", "#D98E92", "#820AD1", "#FF7A00"];
+  const particles = [];
+  for (let i = 0; i < 60; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height * 0.3,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 6 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 3,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.15,
+      alpha: 1
+    });
+  }
+
+  let frame = 0;
+  const maxFrames = 90;
+  function animate() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.rot += p.vr;
+      if (frame > maxFrames * 0.6) p.alpha = Math.max(0, p.alpha - 0.03);
+      if (p.alpha <= 0) return;
+      alive = true;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    if (alive && frame < maxFrames) requestAnimationFrame(animate);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  requestAnimationFrame(animate);
+}
+
+// ============================================================
+// TOAST (with confetti)
 // ============================================================
 let toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
-  t.classList.add("show");
+  t.className = "toast show success";
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => { t.className = "toast"; }, 2600);
+  fireConfetti();
 }
