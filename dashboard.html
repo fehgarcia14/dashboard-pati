@@ -367,7 +367,7 @@
 
     <!-- ===================== AGENDA ===================== -->
     <section class="view" id="view-agenda">
-      <div class="kpi-grid">
+      <div class="kpi-grid kpi-grid-5">
         <div class="kpi-ticket accent-primary">
           <div class="label">Atendimentos hoje</div>
           <span class="value mono" id="kpi-ag-hoje-qtd">0</span>
@@ -384,6 +384,18 @@
           <div class="label">Faturamento do ano</div>
           <span class="value mono" id="kpi-ag-ano">R$ 0,00</span>
         </div>
+        <div class="kpi-ticket accent-gold">
+          <div class="label">A Receber</div>
+          <span class="value mono" id="kpi-ag-a-receber">R$ 0,00</span>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-a-receber" style="display:none;">
+        <div class="panel-head">
+          <h3>A Receber</h3>
+          <span class="hint" id="a-receber-count"></span>
+        </div>
+        <div id="a-receber-list"></div>
       </div>
 
       <div class="panel">
@@ -705,6 +717,17 @@
         </div>
       </div>
 
+      <div id="atend-recebido-group">
+        <div class="field">
+          <label for="atend-recebido">Você já recebeu esse pagamento?</label>
+          <select id="atend-recebido">
+            <option value="sim">Sim, já recebi</option>
+            <option value="nao">Não, vou receber depois</option>
+          </select>
+          <span class="calc-hint">Se você trabalha em salão e o valor é repassado depois, marque "Não".</span>
+        </div>
+      </div>
+
       <div class="field">
         <label for="atend-obs">Observação (opcional)</label>
         <input type="text" id="atend-obs" placeholder="Ex: cliente nova, pagou adiantado..." />
@@ -820,6 +843,31 @@
       <p class="error-msg" id="aporte-error"></p>
       <button type="submit" class="btn btn-primary btn-block" id="aporte-submit">Registrar aporte</button>
     </form>
+  </div>
+</div>
+
+<!-- MODAL: Marcar como recebido -->
+<div class="modal-backdrop" id="modal-marcar-recebido">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-head">
+      <h3>Marcar como recebido</h3>
+      <button class="modal-close" data-close="modal-marcar-recebido">&times;</button>
+    </div>
+    <p id="recebido-info" style="font-size:0.88rem;color:var(--ink-soft);margin-bottom:16px;"></p>
+    <div class="entry-grid">
+      <div class="field">
+        <label for="recebido-banco">Em qual banco entrou?</label>
+        <select id="recebido-banco"></select>
+      </div>
+      <div class="field">
+        <label for="recebido-data">Data do recebimento</label>
+        <input type="date" id="recebido-data" required />
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" id="recebido-cancelar" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" id="recebido-confirmar" style="flex:1;">Confirmar recebimento</button>
+    </div>
   </div>
 </div>
 

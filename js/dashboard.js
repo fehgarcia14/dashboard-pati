@@ -1286,11 +1286,16 @@ function renderAgenda() {
   });
   const yearRealizados = realizados.filter(a => parseDate(a.data).getFullYear() === now.getFullYear());
 
+  const pendentesReceb = realizados.filter(a => a.recebido === false);
+  const totalAReceber = totalOf(pendentesReceb);
+
   animateCount("kpi-ag-hoje-qtd", allAtendimentos.filter(a => a.data === today).length);
   animateKPI("kpi-ag-hoje-fat", totalOf(todayRealizados));
   animateKPI("kpi-ag-mes", totalOf(monthRealizados));
   animateKPI("kpi-ag-ano", totalOf(yearRealizados));
+  animateKPI("kpi-ag-a-receber", totalAReceber);
 
+  renderAReceber(pendentesReceb);
   renderProximosAtendimentos();
 
   const byDay = {};
@@ -1321,15 +1326,21 @@ function renderAgenda() {
         </div>
         ${items.map(a => {
           const st = a.status || "realizado";
+          const recBadge = st === "realizado" ? (a.recebido === false
+            ? '<span class="status-badge a-receber" style="margin-left:4px;">A receber</span>'
+            : '<span class="status-badge recebido-ok" style="margin-left:4px;">Recebido</span>') : "";
+          const recBtn = (st === "realizado" && a.recebido === false)
+            ? `<button class="btn-sm" data-mark-recebido="${a.id}" title="Marcar como recebido">💰 Recebido</button>` : "";
           return `
           <div class="agenda-item">
             <div class="atend-info">
               <strong>${escapeHtml(a.cliente)}</strong>
-              <span class="status-badge ${st}" style="margin-left:8px;">${st.charAt(0).toUpperCase() + st.slice(1)}</span>
+              <span class="status-badge ${st}" style="margin-left:8px;">${st.charAt(0).toUpperCase() + st.slice(1)}</span>${recBadge}
               <div class="atend-details">${a.quantidade || 1}x ${escapeHtml(a.servico)} · ${FORMAS_PAGAMENTO[a.formaPagamento] || a.formaPagamento}${a.observacao ? " · " + escapeHtml(a.observacao) : ""}</div>
             </div>
             <span class="atend-valor">${fmtBRL(a.valorTotal)}</span>
             <div class="row-actions">
+              ${recBtn}
               ${st === "agendado" ? `<button class="btn-sm btn-sage" data-realize-atend="${a.id}" title="Marcar como realizado">✓ Realizado</button>` : ""}
               ${st === "agendado" ? `<button class="btn-sm" data-cancel-atend="${a.id}" title="Cancelar">✗ Cancelar</button>` : ""}
               <button class="icon-btn" data-edit-atend="${a.id}" title="Editar">✎</button>
@@ -1359,6 +1370,9 @@ function renderAgenda() {
     });
     container.querySelectorAll("[data-cancel-atend]").forEach(btn => {
       btn.addEventListener("click", () => handleAtendStatusChange(btn.dataset.cancelAtend, "cancelado"));
+    });
+    container.querySelectorAll("[data-mark-recebido]").forEach(btn => {
+      btn.addEventListener("click", () => openMarcarRecebidoModal(btn.dataset.markRecebido));
     });
   }
 
@@ -1445,26 +1459,32 @@ async function handleAtendStatusChange(atendId, newStatus) {
 
   try {
     if (newStatus === "realizado" && oldStatus !== "realizado") {
-      const lancPayload = {
-        movimento: "entrada",
-        tipo: "profissional",
-        categoria: "servicos",
-        valor: atend.valorTotal,
-        data: atend.data,
-        banco: atend.banco,
-        formaPagamento: atend.formaPagamento,
-        statusPagamento: atend.formaPagamento === "credito" ? "pendente" : "pago",
-        fixo: false,
-        descricao: `${atend.cliente} — ${atend.quantidade || 1}x ${atend.servico}`,
-        origemAgendaId: atendId,
-        criadoEm: serverTimestamp()
-      };
-      const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
-      await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
-        status: newStatus,
-        lancamentoId: lancRef.id
-      });
-      showToast("Atendimento realizado e lançamento criado.");
+      const isRecebido = atend.recebido !== false;
+      if (isRecebido) {
+        const lancPayload = {
+          movimento: "entrada",
+          tipo: "profissional",
+          categoria: "servicos",
+          valor: atend.valorTotal,
+          data: atend.data,
+          banco: atend.banco,
+          formaPagamento: atend.formaPagamento,
+          statusPagamento: atend.formaPagamento === "credito" ? "pendente" : "pago",
+          fixo: false,
+          descricao: `${atend.cliente} — ${atend.quantidade || 1}x ${atend.servico}`,
+          origemAgendaId: atendId,
+          criadoEm: serverTimestamp()
+        };
+        const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
+        await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
+          status: newStatus,
+          lancamentoId: lancRef.id
+        });
+        showToast("Atendimento realizado e lançamento criado.");
+      } else {
+        await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), { status: newStatus });
+        showToast("Atendimento realizado (pendente de recebimento).");
+      }
     } else if (newStatus === "cancelado" && oldStatus === "realizado") {
       if (atend.lancamentoId) {
         await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
@@ -1491,6 +1511,92 @@ async function handleAtendStatusChange(atendId, newStatus) {
     console.error("Erro ao atualizar status:", err);
     showToast("Erro ao atualizar status.");
   }
+}
+
+// ============================================================
+// A RECEBER
+// ============================================================
+function renderAReceber(pendentes) {
+  const panel = document.getElementById("panel-a-receber");
+  const container = document.getElementById("a-receber-list");
+  const countEl = document.getElementById("a-receber-count");
+
+  if (pendentes.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "block";
+  countEl.textContent = `${pendentes.length} pendente${pendentes.length > 1 ? "s" : ""} · ${fmtBRL(totalOf(pendentes))}`;
+
+  const sorted = pendentes.slice().sort((a, b) => parseDate(a.data) - parseDate(b.data));
+  container.innerHTML = sorted.map(a => {
+    const d = parseDate(a.data);
+    const dataFmt = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+    return `<div class="a-receber-item">
+      <div class="ar-info">
+        <strong>${escapeHtml(a.cliente)}</strong>
+        <div class="ar-detail">${dataFmt} · ${a.quantidade || 1}x ${escapeHtml(a.servico)}</div>
+      </div>
+      <span class="ar-valor">${fmtBRL(a.valorTotal)}</span>
+      <button class="btn-sm" data-ar-recebido="${a.id}">💰 Recebido</button>
+    </div>`;
+  }).join("");
+
+  container.querySelectorAll("[data-ar-recebido]").forEach(btn => {
+    btn.addEventListener("click", () => openMarcarRecebidoModal(btn.dataset.arRecebido));
+  });
+}
+
+function openMarcarRecebidoModal(atendId) {
+  const atend = allAtendimentos.find(a => a.id === atendId);
+  if (!atend) return;
+
+  populateBankSelect("recebido-banco");
+  document.getElementById("recebido-banco").value = atend.banco || "nubank";
+  document.getElementById("recebido-data").value = todayStr();
+  document.getElementById("recebido-info").textContent = `${atend.cliente} — ${fmtBRL(atend.valorTotal)} (${atend.quantidade || 1}x ${atend.servico})`;
+  document.getElementById("modal-marcar-recebido").classList.add("active");
+
+  const cleanup = () => {
+    confirmBtn.removeEventListener("click", onConfirm);
+    cancelBtn.removeEventListener("click", onCancel);
+    closeModal("modal-marcar-recebido");
+  };
+
+  const onConfirm = async () => {
+    const bancoRecebimento = document.getElementById("recebido-banco").value;
+    const dataRecebimento = document.getElementById("recebido-data").value;
+    cleanup();
+
+    const lancPayload = {
+      movimento: "entrada",
+      tipo: "profissional",
+      categoria: "servicos",
+      valor: atend.valorTotal,
+      data: dataRecebimento,
+      banco: bancoRecebimento,
+      formaPagamento: atend.formaPagamento,
+      statusPagamento: "pago",
+      fixo: false,
+      descricao: `${atend.cliente} — ${atend.quantidade || 1}x ${atend.servico}`,
+      origemAgendaId: atendId,
+      criadoEm: serverTimestamp()
+    };
+    const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
+    await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", atendId), {
+      recebido: true,
+      bancoRecebimento,
+      dataRecebimento,
+      lancamentoId: lancRef.id
+    });
+    showToast("Recebimento confirmado e lançamento criado.");
+  };
+  const onCancel = () => cleanup();
+
+  const confirmBtn = document.getElementById("recebido-confirmar");
+  const cancelBtn = document.getElementById("recebido-cancelar");
+  confirmBtn.addEventListener("click", onConfirm);
+  cancelBtn.addEventListener("click", onCancel);
 }
 
 // ============================================================
@@ -2121,6 +2227,7 @@ function openAtendModal(atend) {
   document.getElementById("atend-forma").value = atend?.formaPagamento || "pix";
   document.getElementById("atend-banco").value = atend?.banco || "outro";
   document.getElementById("atend-status").value = atend?.status || "realizado";
+  document.getElementById("atend-recebido").value = (atend?.recebido === false) ? "nao" : "sim";
   document.getElementById("atend-obs").value = atend?.observacao || "";
 
   document.getElementById("modal-atendimento").classList.add("active");
@@ -2139,6 +2246,8 @@ async function handleAtendSubmit(e) {
   const formaPagamento = document.getElementById("atend-forma").value;
   const banco = document.getElementById("atend-banco").value;
   const status = document.getElementById("atend-status").value;
+  const recebidoSel = document.getElementById("atend-recebido").value;
+  const recebido = recebidoSel === "sim";
   const observacao = document.getElementById("atend-obs").value.trim();
 
   if (!cliente) { errEl.textContent = "Informe o nome do cliente."; return; }
@@ -2148,6 +2257,8 @@ async function handleAtendSubmit(e) {
   btn.textContent = "Salvando...";
 
   try {
+    const shouldCreateLanc = status === "realizado" && recebido;
+
     const lancPayload = {
       movimento: "entrada",
       tipo: "profissional",
@@ -2166,14 +2277,15 @@ async function handleAtendSubmit(e) {
     if (editingAtendId) {
       const atend = allAtendimentos.find(a => a.id === editingAtendId);
       const oldStatus = atend?.status || "realizado";
+      const hadLanc = !!atend?.lancamentoId;
 
-      if (status === "realizado" && oldStatus === "realizado" && atend?.lancamentoId) {
+      if (shouldCreateLanc && hadLanc) {
         await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId), lancPayload);
-      } else if (status === "realizado" && oldStatus !== "realizado") {
+      } else if (shouldCreateLanc && !hadLanc) {
         const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
         await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", editingAtendId), {
           cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
-          lancamentoId: lancRef.id
+          recebido, lancamentoId: lancRef.id
         });
         showToast("Atendimento atualizado e lançamento criado.");
         closeModal("modal-atendimento");
@@ -2182,21 +2294,22 @@ async function handleAtendSubmit(e) {
         btn.disabled = false;
         btn.textContent = "Salvar atendimento";
         return;
-      } else if (status !== "realizado" && oldStatus === "realizado" && atend?.lancamentoId) {
+      } else if (!shouldCreateLanc && hadLanc) {
         await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
       }
 
       await updateDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", editingAtendId), {
         cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
-        lancamentoId: status === "realizado" ? (atend?.lancamentoId || null) : null
+        recebido,
+        lancamentoId: shouldCreateLanc ? (atend?.lancamentoId || null) : null
       });
       showToast("Atendimento atualizado.");
     } else {
-      if (status === "realizado") {
+      if (shouldCreateLanc) {
         const lancRef = await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), lancPayload);
         const atendPayload = {
           cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
-          lancamentoId: lancRef.id,
+          recebido, lancamentoId: lancRef.id,
           criadoEm: serverTimestamp()
         };
         const atendRef = await addDoc(collection(db, "usuarios", currentUser.uid, "atendimentos"), atendPayload);
@@ -2205,11 +2318,11 @@ async function handleAtendSubmit(e) {
       } else {
         const atendPayload = {
           cliente, servico, quantidade, valorUnitario, valorTotal, data, formaPagamento, banco, observacao, status,
-          lancamentoId: null,
+          recebido, lancamentoId: null,
           criadoEm: serverTimestamp()
         };
         await addDoc(collection(db, "usuarios", currentUser.uid, "atendimentos"), atendPayload);
-        showToast("Atendimento agendado.");
+        showToast(status === "realizado" ? "Atendimento salvo (pendente de recebimento)." : "Atendimento agendado.");
       }
     }
 

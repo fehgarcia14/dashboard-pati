@@ -1276,6 +1276,34 @@ tbody tr:hover { background: var(--surface-2); }
   font-size: 0.88rem;
 }
 
+/* ---- Recebimento badge ---- */
+.status-badge.a-receber { background: var(--warning-soft); color: var(--warning); }
+.status-badge.recebido-ok { background: var(--sage-soft); color: var(--sage); }
+
+.a-receber-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  border-left: 3px solid var(--warning);
+  margin-bottom: 8px;
+  font-size: 0.86rem;
+  gap: 12px;
+  transition: transform .1s ease;
+}
+.a-receber-item:hover { transform: translateX(2px); }
+.a-receber-item .ar-info { flex: 1; }
+.a-receber-item .ar-info strong { font-weight: 600; }
+.a-receber-item .ar-detail { font-size: 0.78rem; color: var(--ink-soft); margin-top: 2px; }
+.a-receber-item .ar-valor {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
 /* ---- Origin tag in category legend ---- */
 .cc-origin-tag {
   font-size: 0.68rem;
