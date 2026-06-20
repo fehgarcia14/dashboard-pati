@@ -301,7 +301,7 @@
             <thead>
               <tr>
                 <th>Data</th>
-                <th>Banco</th>
+                <th>Banco(s)</th>
                 <th>Produto</th>
                 <th>Tipo</th>
                 <th>Valor</th>
@@ -648,9 +648,15 @@
     <form id="inv-form">
       <input type="hidden" id="inv-id" />
 
-      <div class="field">
-        <label for="inv-banco">Banco</label>
-        <select id="inv-banco" required></select>
+      <div class="entry-grid">
+        <div class="field">
+          <label for="inv-banco-origem">Banco de origem</label>
+          <select id="inv-banco-origem" required></select>
+        </div>
+        <div class="field">
+          <label for="inv-banco-investimento">Banco do investimento</label>
+          <select id="inv-banco-investimento" required></select>
+        </div>
       </div>
 
       <div class="field">

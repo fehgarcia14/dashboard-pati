@@ -825,7 +825,7 @@ function renderBankCards() {
 
   const range = getRange(filterState.type, filterState.value, filterState.year);
   allInvestimentos.forEach(inv => {
-    const bk = inv.banco || "outro";
+    const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     if (inRange(inv.data, range)) {
       periodSaldo[bk] = (periodSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
@@ -839,7 +839,7 @@ function renderBankCards() {
   });
 
   allInvestimentos.forEach(inv => {
-    const bk = inv.banco || "outro";
+    const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     totalSaldo[bk] = (totalSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
   });
@@ -996,8 +996,9 @@ function renderInvestments() {
 
   const prodMap = {};
   allInvestimentos.forEach(e => {
-    const key = `${e.banco}|||${e.produto}`;
-    if (!prodMap[key]) prodMap[key] = { banco: e.banco, produto: e.produto, saldo: 0 };
+    const bInv = e.bancoInvestimento || e.banco || "outro";
+    const key = `${bInv}|||${e.produto}`;
+    if (!prodMap[key]) prodMap[key] = { banco: bInv, produto: e.produto, saldo: 0 };
     prodMap[key].saldo += e.movimento === "aporte" ? Number(e.valor) : -Number(e.valor);
   });
 
@@ -1051,12 +1052,17 @@ function renderInvestments() {
   document.getElementById("inv-hist-count").textContent = `${sorted.length} movimento${sorted.length === 1 ? "" : "s"}`;
   const tbody = document.getElementById("inv-tbody");
   tbody.innerHTML = sorted.map(e => {
-    const b = bankById(e.banco);
+    const bOrigem = bankById(e.bancoOrigem || e.banco || "outro");
+    const bInvest = bankById(e.bancoInvestimento || e.banco || "outro");
     const d = parseDate(e.data);
     const isAporte = e.movimento === "aporte";
+    const sameBanco = bOrigem.id === bInvest.id;
+    const bancoCell = sameBanco
+      ? `<span class="cat-pill" style="background:${bInvest.color}22;color:${bInvest.color}">${bInvest.label}</span>`
+      : `<span class="cat-pill" style="background:${bOrigem.color}22;color:${bOrigem.color}">${bOrigem.label}</span> → <span class="cat-pill" style="background:${bInvest.color}22;color:${bInvest.color}">${bInvest.label}</span>`;
     return `<tr>
       <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
-      <td><span class="cat-pill" style="background:${b.color}22;color:${b.color}">${b.label}</span></td>
+      <td>${bancoCell}</td>
       <td>${escapeHtml(e.produto)}</td>
       <td><span class="mov-pill ${isAporte ? "entrada" : "saida"}">${isAporte ? "Aporte" : "Retirada"}</span></td>
       <td class="amt-cell ${isAporte ? "positive" : "negative"}">${isAporte ? "+" : "−"} ${fmtBRL(e.valor)}</td>
@@ -1963,16 +1969,28 @@ async function handleAtendSubmit(e) {
 // INVESTIMENTO MODAL
 // ============================================================
 function initInvModal() {
-  populateBankSelect("inv-banco");
+  populateBankSelect("inv-banco-origem");
+  populateBankSelect("inv-banco-investimento");
+
+  document.getElementById("inv-banco-origem").addEventListener("change", () => {
+    document.getElementById("inv-banco-investimento").value = document.getElementById("inv-banco-origem").value;
+  });
 
   document.querySelectorAll("#modal-investimento [data-inv-mov]").forEach(pill => {
     pill.addEventListener("click", () => {
       document.querySelectorAll("#modal-investimento [data-inv-mov]").forEach(p => p.classList.remove("active"));
       pill.classList.add("active");
+      updateInvBancoOrigemLabel();
     });
   });
 
   document.getElementById("inv-form").addEventListener("submit", handleInvSubmit);
+}
+
+function updateInvBancoOrigemLabel() {
+  const mov = document.querySelector("#modal-investimento [data-inv-mov].active")?.dataset.invMov || "aporte";
+  const label = document.querySelector('label[for="inv-banco-origem"]');
+  label.textContent = mov === "retirada" ? "Banco destino (pra onde volta)" : "Banco de origem";
 }
 
 function openInvModal(inv) {
@@ -1981,7 +1999,9 @@ function openInvModal(inv) {
   document.getElementById("inv-error").textContent = "";
   document.getElementById("inv-submit").textContent = inv ? "Salvar alterações" : "Salvar movimento";
 
-  document.getElementById("inv-banco").value = inv?.banco || "nubank";
+  const fallbackBanco = inv?.banco || "nubank";
+  document.getElementById("inv-banco-origem").value = inv?.bancoOrigem || fallbackBanco;
+  document.getElementById("inv-banco-investimento").value = inv?.bancoInvestimento || fallbackBanco;
   document.getElementById("inv-produto").value = inv?.produto || "";
   document.getElementById("inv-valor").value = inv?.valor || "";
   document.getElementById("inv-data").value = inv?.data || todayStr();
@@ -1989,6 +2009,7 @@ function openInvModal(inv) {
 
   const mov = inv?.movimento || "aporte";
   document.querySelectorAll("#modal-investimento [data-inv-mov]").forEach(p => p.classList.toggle("active", p.dataset.invMov === mov));
+  updateInvBancoOrigemLabel();
 
   document.getElementById("modal-investimento").classList.add("active");
 }
@@ -1997,7 +2018,8 @@ async function handleInvSubmit(e) {
   e.preventDefault();
   const errEl = document.getElementById("inv-error");
   const btn = document.getElementById("inv-submit");
-  const banco = document.getElementById("inv-banco").value;
+  const bancoOrigem = document.getElementById("inv-banco-origem").value;
+  const bancoInvestimento = document.getElementById("inv-banco-investimento").value;
   const produto = document.getElementById("inv-produto").value.trim();
   const movimento = document.querySelector("#modal-investimento [data-inv-mov].active")?.dataset.invMov || "aporte";
   const valor = Number(document.getElementById("inv-valor").value);
@@ -2011,7 +2033,7 @@ async function handleInvSubmit(e) {
   btn.textContent = "Salvando...";
 
   try {
-    const payload = { banco, produto, movimento, valor, data, observacao };
+    const payload = { bancoOrigem, bancoInvestimento, banco: bancoInvestimento, produto, movimento, valor, data, observacao };
     if (editingInvId) {
       await updateDoc(doc(db, "usuarios", currentUser.uid, "investimentos", editingInvId), payload);
       showToast("Movimento atualizado.");
