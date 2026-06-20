@@ -457,6 +457,7 @@ button {
   .sidebar.open { transform: translateX(0); }
 
   .main { padding-top: 68px; }
+  .main-header h1 { padding-left: 48px; }
 }
 
 .sidebar {
@@ -1722,13 +1723,15 @@ tbody tr:hover { background: var(--surface-2); }
   .bank-card .bank-value { font-size: 0.95rem; }
 
   .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal-backdrop.active { display: flex; }
   .modal {
-    max-width: 100%;
-    width: 100%;
+    max-width: 100vw;
+    width: 100vw;
     border-radius: var(--radius) var(--radius) 0 0;
     max-height: 92vh;
     padding: 24px 20px;
     margin: 0;
+    box-sizing: border-box;
   }
   .modal-backdrop.active .modal { transform: translateY(0); }
 
