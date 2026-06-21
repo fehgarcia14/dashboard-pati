@@ -74,7 +74,7 @@ function buildMocks() {
   const entries = ${JSON.stringify(entries)};
 
   export function getFirestore() { return {}; }
-  export function doc() { return {}; }
+  export function doc(...args) { if (args.length >= 3 && args[1] === "users") return { __pagoDoc: true }; return {}; }
   export function getDoc() {
     return Promise.resolve({
       exists: () => true,
@@ -87,6 +87,7 @@ function buildMocks() {
   export function addDoc() { return Promise.resolve({ id: 'new-doc' }); }
   export function deleteDoc() { return Promise.resolve(); }
   export function onSnapshot(ref, callback) {
+    if (ref && ref.__pagoDoc) { setTimeout(() => callback({ exists: () => true, data: () => ({ pago: true }) }), 5); return () => {}; }
     snapshotCount++;
     if (snapshotCount === 1) {
       setTimeout(() => callback({

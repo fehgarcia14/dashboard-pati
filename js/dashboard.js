@@ -81,7 +81,7 @@ let allEntries = [];
 let allAtendimentos = [];
 let allInvestimentos = [];
 let allMetas = [];
-let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null;
+let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null, unsubPago = null;
 let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMetaId = null;
 let appInitialized = false;
 let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
@@ -90,6 +90,28 @@ let entriesMovFilter = "todos";
 let currentView = 'overview';
 let chartDebounceTimer = null;
 let skeletonRemoved = false;
+let usuarioPago = false;
+
+const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
+
+const DEMO_ENTRIES = [
+  { id:'demo1', movimento:'entrada', tipo:'profissional', categoria:'servicos', valor:1500,
+    data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
+    fixo:false, descricao:'Atendimento — Limpeza de pele' },
+  { id:'demo2', movimento:'saida', tipo:'pessoal', categoria:'alimentacao', valor:320,
+    data:todayStr(), banco:'inter', formaPagamento:'debito', statusPagamento:'pago',
+    fixo:false, descricao:'Supermercado' },
+  { id:'demo3', movimento:'entrada', tipo:'profissional', categoria:'comissoes', valor:800,
+    data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
+    fixo:false, descricao:'Comissão — Semana 3' },
+];
+const DEMO_ATENDIMENTOS = [
+  { id:'demo-a1', cliente:'Maria Silva', servicos:['Limpeza de pele'], valorTotal:150,
+    data:todayStr(), hora:'14:00', status:'confirmado', recebido:true,
+    formaPagamento:'pix', banco:'nubank' },
+];
+const DEMO_INVESTIMENTOS = [];
+const DEMO_METAS = [];
 
 const filterState = {
   type: "month",
@@ -122,14 +144,13 @@ onAuthStateChanged(auth, async (user) => {
   initMobileMenu();
   initModals();
   initTableScrollShadows();
+  initPaywall();
 
-  listenEntries();
-  listenAtendimentos();
-  listenInvestimentos();
-  listenMetas();
+  listenPago();
 });
 
 document.getElementById("logout-btn").addEventListener("click", async () => {
+  if (unsubPago) unsubPago();
   if (unsubEntries) unsubEntries();
   if (unsubAtend) unsubAtend();
   if (unsubInvest) unsubInvest();
@@ -417,6 +438,96 @@ function listenMetas() {
     allMetas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAll();
   }, () => showToast("Erro ao carregar metas."));
+}
+
+// ============================================================
+// PAYWALL — listener & guard
+// ============================================================
+function listenPago() {
+  const ref = doc(db, "users", currentUser.uid);
+  unsubPago = onSnapshot(ref, (snap) => {
+    const wasPago = usuarioPago;
+    usuarioPago = snap.exists() && snap.data().pago === true;
+    renderDemoBanner();
+    if (!wasPago && usuarioPago) {
+      loadRealData();
+    } else if (!usuarioPago && !wasPago) {
+      loadDemoData();
+    }
+  }, () => {
+    usuarioPago = false;
+    loadDemoData();
+    renderDemoBanner();
+  });
+}
+
+function loadDemoData() {
+  allEntries = [...DEMO_ENTRIES];
+  allAtendimentos = [...DEMO_ATENDIMENTOS];
+  allInvestimentos = [...DEMO_INVESTIMENTOS];
+  allMetas = [...DEMO_METAS];
+  if (unsubEntries) { unsubEntries(); unsubEntries = null; }
+  if (unsubAtend) { unsubAtend(); unsubAtend = null; }
+  if (unsubInvest) { unsubInvest(); unsubInvest = null; }
+  if (unsubMetas) { unsubMetas(); unsubMetas = null; }
+  removeSkeleton();
+  renderAll();
+}
+
+function loadRealData() {
+  listenEntries();
+  listenAtendimentos();
+  listenInvestimentos();
+  listenMetas();
+}
+
+function demoGuard() {
+  if (usuarioPago) return false;
+  showDemoToast("Versão de demonstração. Libere o acesso completo para salvar seus dados reais.");
+  return true;
+}
+
+function showDemoToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show demo-toast";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = "toast"; }, 3500);
+}
+
+function renderDemoBanner() {
+  const banner = document.getElementById("demo-banner");
+  if (!banner) return;
+  banner.style.display = usuarioPago ? "none" : "flex";
+
+  const pending = document.getElementById("payment-pending");
+  if (pending) {
+    const params = new URLSearchParams(window.location.search);
+    pending.style.display = (!usuarioPago && params.has("status")) ? "block" : "none";
+  }
+}
+
+async function handleComprarAcesso() {
+  if (!currentUser) return;
+  const btn = document.getElementById("btn-comprar");
+  if (btn) { btn.disabled = true; btn.textContent = "Aguarde..."; }
+  try {
+    const res = await fetch(`${WEBHOOK_URL}/api/create-preference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid: currentUser.uid }),
+    });
+    const data = await res.json();
+    if (data.init_point) {
+      window.location.href = data.init_point;
+    } else {
+      showDemoToast("Não foi possível iniciar o pagamento, tente novamente.");
+    }
+  } catch {
+    showDemoToast("Não foi possível iniciar o pagamento, tente novamente.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Liberar acesso completo — R$50"; }
+  }
 }
 
 // ============================================================
@@ -990,6 +1101,7 @@ function renderEntriesTable() {
 }
 
 async function handleDeleteEntry(entryId) {
+  if (demoGuard()) return;
   const entry = allEntries.find(e => e.id === entryId);
   if (!entry) return;
 
@@ -1062,6 +1174,7 @@ function renderCreditCard() {
 
     tbody.querySelectorAll("[data-cc-status]").forEach(sel => {
       sel.addEventListener("change", async () => {
+        if (demoGuard()) { sel.value = sel.dataset.ccOldStatus; return; }
         const newSt = sel.value;
         const oldSt = sel.dataset.ccOldStatus;
         const entryId = sel.dataset.ccStatus;
@@ -1265,6 +1378,7 @@ function renderInvestments() {
   });
   tbody.querySelectorAll("[data-del-inv]").forEach(btn => {
     btn.addEventListener("click", async () => {
+      if (demoGuard()) return;
       if (!confirm("Excluir este movimento?")) return;
       await deleteDoc(doc(db, "usuarios", currentUser.uid, "investimentos", btn.dataset.delInv));
       showToast("Movimento excluído.");
@@ -1358,6 +1472,7 @@ function renderAgenda() {
     });
     container.querySelectorAll("[data-del-atend]").forEach(btn => {
       btn.addEventListener("click", async () => {
+        if (demoGuard()) return;
         if (!confirm("Excluir este atendimento? O lançamento financeiro vinculado também será excluído.")) return;
         const atend = allAtendimentos.find(a => a.id === btn.dataset.delAtend);
         if (atend?.lancamentoId) {
@@ -1550,6 +1665,7 @@ function renderAReceber(pendentes) {
 }
 
 function openMarcarRecebidoModal(atendId) {
+  if (demoGuard()) return;
   const atend = allAtendimentos.find(a => a.id === atendId);
   if (!atend) return;
 
@@ -1671,6 +1787,7 @@ function renderMetas() {
   });
   container.querySelectorAll("[data-del-meta]").forEach(btn => {
     btn.addEventListener("click", async () => {
+      if (demoGuard()) return;
       if (!confirm("Excluir esta meta?")) return;
       await deleteDoc(doc(db, "usuarios", currentUser.uid, "metas", btn.dataset.delMeta));
       showToast("Meta excluída.");
@@ -1712,6 +1829,7 @@ function renderBudget() {
 
   list.querySelectorAll("[data-budget]").forEach(input => {
     input.addEventListener("change", async () => {
+      if (demoGuard()) return;
       userProfile.orcamentos = userProfile.orcamentos || {};
       userProfile.orcamentos[input.dataset.budget] = Number(input.value || 0);
       await setDoc(doc(db, "usuarios", currentUser.uid), { orcamentos: userProfile.orcamentos }, { merge: true });
@@ -2133,6 +2251,7 @@ function openEntryModal(entry) {
 
 async function handleEntrySubmit(e) {
   e.preventDefault();
+  if (demoGuard()) return;
   const errEl = document.getElementById("entry-error");
   const btn = document.getElementById("entry-submit");
   const mov = document.querySelector("#modal-entry [data-mov].active")?.dataset.mov || "entrada";
@@ -2265,6 +2384,7 @@ function openAtendModal(atend) {
 
 async function handleAtendSubmit(e) {
   e.preventDefault();
+  if (demoGuard()) return;
   const errEl = document.getElementById("atend-error");
   const btn = document.getElementById("atend-submit");
   const cliente = document.getElementById("atend-cliente").value.trim();
@@ -2434,6 +2554,7 @@ function openInvModal(inv) {
 
 async function handleInvSubmit(e) {
   e.preventDefault();
+  if (demoGuard()) return;
   const errEl = document.getElementById("inv-error");
   const btn = document.getElementById("inv-submit");
   const bancoOrigem = document.getElementById("inv-banco-origem").value;
@@ -2494,6 +2615,7 @@ function openMetaModal(meta) {
 
 async function handleMetaSubmit(e) {
   e.preventDefault();
+  if (demoGuard()) return;
   const errEl = document.getElementById("meta-error");
   const btn = document.getElementById("meta-submit");
   const nome = document.getElementById("meta-nome").value.trim();
@@ -2545,6 +2667,7 @@ function openAporteModal(metaId) {
 
 async function handleAporteSubmit(e) {
   e.preventDefault();
+  if (demoGuard()) return;
   const errEl = document.getElementById("aporte-error");
   const btn = document.getElementById("aporte-submit");
   const metaId = document.getElementById("aporte-meta-id").value;
@@ -2957,6 +3080,14 @@ function fireConfetti() {
     else ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
   requestAnimationFrame(animate);
+}
+
+// ============================================================
+// PAYWALL — init
+// ============================================================
+function initPaywall() {
+  const btn = document.getElementById("btn-comprar");
+  if (btn) btn.addEventListener("click", handleComprarAcesso);
 }
 
 // ============================================================

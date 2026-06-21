@@ -1276,6 +1276,53 @@ tbody tr:hover { background: var(--surface-2); }
   background: var(--bg);
 }
 
+/* ---- Demo Banner / Paywall ---- */
+.demo-banner {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #6B1F3D, #4A1529);
+  color: #fff;
+  text-align: center;
+  z-index: 30;
+}
+.demo-banner-text {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+.demo-banner-sub {
+  font-size: 0.78rem;
+  opacity: 0.8;
+  margin: 0;
+}
+.btn-comprar {
+  background: #C9A24B;
+  color: #241A1D;
+  font-weight: 700;
+  border: none;
+  padding: 10px 28px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-comprar:hover { background: #D4AF5B; }
+.btn-comprar:disabled { opacity: 0.6; cursor: wait; }
+.payment-pending {
+  font-size: 0.82rem;
+  color: #F3DEE6;
+  animation: pendingPulse 1.5s ease-in-out infinite;
+  margin: 0;
+}
+@keyframes pendingPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+
+.toast.show.demo-toast { background: #6B1F3D; }
+.toast.show.demo-toast::before { content: "⚠ "; }
+
 /* ---- Toast ---- */
 .toast {
   position: fixed;
