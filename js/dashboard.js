@@ -897,59 +897,38 @@ function entrySaldoImpact(e) {
 }
 
 function renderBankCards() {
-  const periodEl = document.getElementById("bank-cards-period");
-  const totalEl = document.getElementById("bank-cards-total");
-  const cur = filteredEntries();
-
-  const periodSaldo = {};
-  const totalSaldo = {};
-  BANKS.forEach(b => { periodSaldo[b.id] = 0; totalSaldo[b.id] = 0; });
-
-  cur.forEach(e => {
-    const { banco: bk, delta } = entrySaldoImpact(e);
-    if (bk) periodSaldo[bk] = (periodSaldo[bk] || 0) + delta;
-  });
-
+  const container = document.getElementById("bank-cards-total");
   const range = getRange(filterState.type, filterState.value, filterState.year);
-  allInvestimentos.forEach(inv => {
-    const bk = inv.bancoOrigem || inv.banco || "outro";
-    const val = Number(inv.valor || 0);
-    if (inRange(inv.data, range)) {
-      periodSaldo[bk] = (periodSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
-    }
-  });
+
+  const saldo = {};
+  BANKS.forEach(b => { saldo[b.id] = 0; });
 
   allEntries.forEach(e => {
     if (parseDate(e.data) > range.end) return;
     const { banco: bk, delta } = entrySaldoImpact(e);
-    if (bk) totalSaldo[bk] = (totalSaldo[bk] || 0) + delta;
+    if (bk) saldo[bk] = (saldo[bk] || 0) + delta;
   });
 
   allInvestimentos.forEach(inv => {
     if (parseDate(inv.data) > range.end) return;
     const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
-    totalSaldo[bk] = (totalSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
+    saldo[bk] = (saldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
   });
 
-  const renderCards = (obj, container) => {
-    const entries = Object.entries(obj).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
-    if (entries.length === 0) {
-      container.innerHTML = '<div class="chart-empty"><span class="empty-icon">🏦</span><span>Sem movimentação</span></div>';
-      return;
-    }
-    container.innerHTML = entries.map(([id, val]) => {
-      const b = bankById(id);
-      const textColor = (id === "bb" || id === "dinheiro") ? "#241A1D" : "#fff";
-      return `<div class="bank-card" style="background:${b.color};color:${textColor};">
-        <div class="bank-name">${b.label}</div>
-        <span class="bank-value">${fmtBRL(val)}</span>
-      </div>`;
-    }).join("");
-  };
-
-  renderCards(periodSaldo, periodEl);
-  renderCards(totalSaldo, totalEl);
+  const entries = Object.entries(saldo).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="chart-empty"><span class="empty-icon">🏦</span><span>Sem movimentação</span></div>';
+    return;
+  }
+  container.innerHTML = entries.map(([id, val]) => {
+    const b = bankById(id);
+    const textColor = (id === "bb" || id === "dinheiro") ? "#241A1D" : "#fff";
+    return `<div class="bank-card" style="background:${b.color};color:${textColor};">
+      <div class="bank-name">${b.label}</div>
+      <span class="bank-value">${fmtBRL(val)}</span>
+    </div>`;
+  }).join("");
 }
 
 // ============================================================
