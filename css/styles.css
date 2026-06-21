@@ -1811,6 +1811,8 @@ tbody tr:hover { background: var(--surface-2); }
 
   .toast { bottom: 80px; font-size: 0.84rem; max-width: calc(100vw - 32px); text-align: center; }
 
+  .demo-banner { padding: 14px 16px 14px 64px; }
+
   .inv-bank-header { font-size: 0.82rem; padding: 10px 14px; }
   .inv-product-row { font-size: 0.82rem; padding: 8px 14px; }
 
