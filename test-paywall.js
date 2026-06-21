@@ -39,7 +39,7 @@ function buildMocks(pago) {
   export function getFirestore() { return {}; }
   export function doc(...args) {
     // Return a marker if it's a users/{uid} doc (for listenPago)
-    if (args.length >= 3 && args[1] === "users") return { __pagoDoc: true, uid: args[2] };
+    if (args.length >= 3 && args[1] === "usuarios") return { __pagoDoc: true, uid: args[2] };
     return {};
   }
   export function getDoc() {

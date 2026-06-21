@@ -153,7 +153,7 @@ function buildMocks() {
   const investimentos = ${JSON.stringify(investimentos)};
 
   export function getFirestore() { return {}; }
-  export function doc(...args) { if (args.length >= 3 && args[1] === "users") return { __pagoDoc: true }; return {}; }
+  export function doc(...args) { if (args.length >= 3 && args[1] === "usuarios") return { __pagoDoc: true }; return {}; }
   export function getDoc() {
     return Promise.resolve({
       exists: () => true,

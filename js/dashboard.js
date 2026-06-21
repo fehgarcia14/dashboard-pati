@@ -444,7 +444,7 @@ function listenMetas() {
 // PAYWALL — listener & guard
 // ============================================================
 function listenPago() {
-  const ref = doc(db, "users", currentUser.uid);
+  const ref = doc(db, "usuarios", currentUser.uid);
   unsubPago = onSnapshot(ref, (snap) => {
     const wasPago = usuarioPago;
     usuarioPago = snap.exists() && snap.data().pago === true;
