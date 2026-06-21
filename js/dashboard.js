@@ -601,9 +601,10 @@ function renderOverviewCharts() {
 function renderTrendChart() {
   const ctx = document.getElementById("chart-trend");
   if (!ctx) return;
-  const now = new Date();
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  const ref = range.end;
   const months = [];
-  for (let i = 11; i >= 0; i--) months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+  for (let i = 11; i >= 0; i--) months.push(new Date(ref.getFullYear(), ref.getMonth() - i, 1));
 
   const recData = months.map(d => totalOf(allEntries.filter(e => {
     const ed = parseDate(e.data);
@@ -799,9 +800,10 @@ function renderPatrimonioChart() {
   const ctx = document.getElementById("chart-patrimonio");
   if (!ctx) return;
 
-  const now = new Date();
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  const ref = range.end;
   const months = [];
-  for (let i = 11; i >= 0; i--) months.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+  for (let i = 11; i >= 0; i--) months.push(new Date(ref.getFullYear(), ref.getMonth() - i, 1));
 
   const patrimonioData = months.map(d => {
     const cutoff = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
