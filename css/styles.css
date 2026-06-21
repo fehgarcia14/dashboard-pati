@@ -1320,6 +1320,38 @@ tbody tr:hover { background: var(--surface-2); }
 }
 @keyframes pendingPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
 
+.demo-banner-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  margin: 0;
+  opacity: 0.85;
+}
+.demo-banner-links a {
+  color: #F3DEE6;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.demo-banner-links a:hover { opacity: 1; text-decoration: underline; }
+.demo-banner-links span { opacity: 0.5; }
+
+.auth-support-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  margin: 16px 0 0;
+  color: var(--ink-soft);
+}
+.auth-support-links a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.auth-support-links a:hover { text-decoration: underline; }
+.auth-support-links span { opacity: 0.4; }
+
 .toast.show.demo-toast { background: #6B1F3D; }
 .toast.show.demo-toast::before { content: "⚠ "; }
 
