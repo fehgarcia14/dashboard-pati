@@ -83,6 +83,7 @@ let allInvestimentos = [];
 let allMetas = [];
 let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null;
 let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMetaId = null;
+let appInitialized = false;
 let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
 let prevKPI = {};
 let entriesMovFilter = "todos";
@@ -107,6 +108,9 @@ onAuthStateChanged(auth, async (user) => {
 
   document.getElementById("user-name").textContent = userProfile.nome || user.email;
   document.getElementById("user-area").textContent = areaLabel(userProfile.area);
+
+  if (appInitialized) return;
+  appInitialized = true;
 
   // Make app visible BEFORE setting up listeners so canvas elements have real dimensions
   document.getElementById("loading").style.display = "none";
@@ -2063,15 +2067,35 @@ function updateParcelaVisibility() {
 }
 
 function populateEntryCategories() {
-  const mov = document.querySelector("#modal-entry [data-mov].active")?.dataset.mov || "entrada";
-  const tipo = document.querySelector("#modal-entry [data-tipo].active")?.dataset.tipo || "pessoal";
-  const sel = document.getElementById("entry-categoria");
+  try {
+    const mov = document.querySelector("#modal-entry [data-mov].active")?.dataset.mov || "entrada";
+    const tipo = document.querySelector("#modal-entry [data-tipo].active")?.dataset.tipo || "pessoal";
+    const sel = document.getElementById("entry-categoria");
 
-  if (mov === "entrada") {
-    sel.innerHTML = CATEGORIES_RECEITA.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
-  } else {
-    sel.innerHTML = CATEGORIES_DESPESA.filter(c => c.tipo === tipo).map(c => `<option value="${c.id}">${c.label}</option>`).join("");
+    let options;
+    if (mov === "entrada") {
+      options = CATEGORIES_RECEITA;
+    } else {
+      options = CATEGORIES_DESPESA.filter(c => c.tipo === tipo);
+      if (options.length === 0) options = CATEGORIES_DESPESA;
+    }
+
+    sel.innerHTML = options.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
+  } catch (err) {
+    console.error("Erro ao popular categorias:", err);
   }
+}
+
+function getDefaultEntryDate() {
+  const now = new Date();
+  if (filterState.type !== "month") return todayStr();
+  const filterMonth = filterState.value;
+  const filterYear = filterState.year;
+  if (filterYear > now.getFullYear() || (filterYear === now.getFullYear() && filterMonth > now.getMonth())) {
+    const d = new Date(filterYear, filterMonth, 1);
+    return d.toISOString().slice(0, 10);
+  }
+  return todayStr();
 }
 
 function openEntryModal(entry) {
@@ -2088,11 +2112,8 @@ function openEntryModal(entry) {
   const tipo = entry?.tipo || "pessoal";
   document.querySelectorAll("#modal-entry [data-tipo]").forEach(p => p.classList.toggle("active", p.dataset.tipo === tipo));
 
-  populateEntryCategories();
-
   document.getElementById("entry-valor").value = entry?.valor || "";
-  document.getElementById("entry-data").value = entry?.data || todayStr();
-  document.getElementById("entry-categoria").value = entry?.categoria || "";
+  document.getElementById("entry-data").value = entry?.data || getDefaultEntryDate();
   document.getElementById("entry-banco").value = entry?.banco || "outro";
   document.getElementById("entry-forma").value = entry?.formaPagamento || "pix";
   document.getElementById("entry-status").value = entry?.statusPagamento || "pago";
@@ -2107,6 +2128,9 @@ function openEntryModal(entry) {
   updateParcelaVisibility();
 
   document.getElementById("modal-entry").classList.add("active");
+
+  populateEntryCategories();
+  document.getElementById("entry-categoria").value = entry?.categoria || "";
 }
 
 async function handleEntrySubmit(e) {
