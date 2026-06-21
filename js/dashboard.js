@@ -559,10 +559,16 @@ function renderOverviewKPIs() {
     document.getElementById("kpi-top-desp-amt").textContent = "";
   }
 
+  const range = getRange(filterState.type, filterState.value, filterState.year);
   const saldoAcum = allEntries.reduce((acc, e) => {
+    if (parseDate(e.data) > range.end) return acc;
     const { delta } = entrySaldoImpact(e);
     return acc + delta;
-  }, 0) + getTotalInvestido();
+  }, 0) + allInvestimentos.reduce((acc, inv) => {
+    if (parseDate(inv.data) > range.end) return acc;
+    const val = Number(inv.valor || 0);
+    return acc + (inv.movimento === "aporte" ? val : -val);
+  }, 0);
   animateKPI("kpi-patrimonio", saldoAcum);
 }
 
@@ -914,11 +920,13 @@ function renderBankCards() {
   });
 
   allEntries.forEach(e => {
+    if (parseDate(e.data) > range.end) return;
     const { banco: bk, delta } = entrySaldoImpact(e);
     if (bk) totalSaldo[bk] = (totalSaldo[bk] || 0) + delta;
   });
 
   allInvestimentos.forEach(inv => {
+    if (parseDate(inv.data) > range.end) return;
     const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     totalSaldo[bk] = (totalSaldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
@@ -2383,7 +2391,21 @@ function initInvModal() {
   populateBankSelect("inv-banco-investimento");
 
   document.getElementById("inv-banco-origem").addEventListener("change", () => {
-    document.getElementById("inv-banco-investimento").value = document.getElementById("inv-banco-origem").value;
+    const mov = document.querySelector("#modal-investimento [data-inv-mov].active")?.dataset.invMov || "aporte";
+    if (mov === "aporte") {
+      document.getElementById("inv-banco-investimento").value = document.getElementById("inv-banco-origem").value;
+    }
+  });
+
+  document.getElementById("inv-produto").addEventListener("input", () => {
+    const mov = document.querySelector("#modal-investimento [data-inv-mov].active")?.dataset.invMov || "aporte";
+    if (mov === "retirada") {
+      const nome = document.getElementById("inv-produto").value.trim().toLowerCase();
+      const match = allInvestimentos.find(e => e.movimento === "aporte" && e.produto.trim().toLowerCase() === nome);
+      if (match) {
+        document.getElementById("inv-banco-investimento").value = match.bancoInvestimento || match.banco || "outro";
+      }
+    }
   });
 
   document.querySelectorAll("#modal-investimento [data-inv-mov]").forEach(pill => {
