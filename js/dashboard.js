@@ -92,7 +92,7 @@ let chartDebounceTimer = null;
 let skeletonRemoved = false;
 let usuarioPago = false;
 
-const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
+const WEBHOOK_URL = "https://dashboard-pati-webhook.vercel.app";
 
 const DEMO_ENTRIES = [
   { id:'demo1', movimento:'entrada', tipo:'profissional', categoria:'servicos', valor:1500,

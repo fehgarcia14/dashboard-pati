@@ -199,7 +199,7 @@ async function run() {
     // so let's verify the fetch is made correctly by evaluating
     const fetchResult = await page.evaluate(async () => {
       try {
-        const res = await fetch("https://dashboard-pati-webhook-one.vercel.app/api/create-preference", {
+        const res = await fetch("https://dashboard-pati-webhook.vercel.app/api/create-preference", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ uid: "test-user" }),
