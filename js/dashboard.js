@@ -3088,6 +3088,17 @@ function fireConfetti() {
 function initPaywall() {
   const btn = document.getElementById("btn-comprar");
   if (btn) btn.addEventListener("click", handleComprarAcesso);
+
+  const helpFab = document.getElementById("help-fab");
+  const helpPop = document.getElementById("help-popover");
+  if (helpFab && helpPop) {
+    helpFab.addEventListener("click", (e) => {
+      e.stopPropagation();
+      helpPop.classList.toggle("open");
+    });
+    document.addEventListener("click", () => helpPop.classList.remove("open"));
+    helpPop.addEventListener("click", (e) => e.stopPropagation());
+  }
 }
 
 // ============================================================
