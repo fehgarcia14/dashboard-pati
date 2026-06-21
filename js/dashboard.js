@@ -562,7 +562,7 @@ function renderOverviewKPIs() {
   const saldoAcum = allEntries.reduce((acc, e) => {
     const { delta } = entrySaldoImpact(e);
     return acc + delta;
-  }, 0);
+  }, 0) + getTotalInvestido();
   animateKPI("kpi-patrimonio", saldoAcum);
 }
 
@@ -799,11 +799,18 @@ function renderPatrimonioChart() {
 
   const patrimonioData = months.map(d => {
     const cutoff = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
-    return allEntries.reduce((acc, e) => {
+    const bankBalance = allEntries.reduce((acc, e) => {
       const ed = parseDate(e.data);
       if (ed > cutoff) return acc;
       return acc + entrySaldoImpact(e).delta;
     }, 0);
+    const investBalance = allInvestimentos.reduce((acc, inv) => {
+      const id = parseDate(inv.data);
+      if (id > cutoff) return acc;
+      const val = Number(inv.valor || 0);
+      return acc + (inv.movimento === "aporte" ? val : -val);
+    }, 0);
+    return bankBalance + investBalance;
   });
 
   if (charts.patrimonio) charts.patrimonio.destroy();
@@ -1170,15 +1177,12 @@ function getTotalInvestido() {
 }
 
 function renderInvestments() {
-  const now = new Date();
-  const thisMonth = allInvestimentos.filter(e => {
-    const d = parseDate(e.data);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  });
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  const periodInv = allInvestimentos.filter(e => inRange(e.data, range));
 
   animateKPI("kpi-inv-total", getTotalInvestido());
-  animateKPI("kpi-inv-aporte", totalOf(thisMonth.filter(e => e.movimento === "aporte")));
-  animateKPI("kpi-inv-retirada", totalOf(thisMonth.filter(e => e.movimento === "retirada")));
+  animateKPI("kpi-inv-aporte", totalOf(periodInv.filter(e => e.movimento === "aporte")));
+  animateKPI("kpi-inv-retirada", totalOf(periodInv.filter(e => e.movimento === "retirada")));
 
   const prodMap = {};
   allInvestimentos.forEach(e => {
@@ -2310,6 +2314,7 @@ async function handleAtendSubmit(e) {
       const atend = allAtendimentos.find(a => a.id === editingAtendId);
       const oldStatus = atend?.status || "realizado";
       const hadLanc = !!atend?.lancamentoId;
+      lancPayload.origemAgendaId = editingAtendId;
 
       if (shouldCreateLanc && hadLanc) {
         await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId), lancPayload);
