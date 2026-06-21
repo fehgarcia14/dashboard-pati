@@ -560,16 +560,21 @@ function renderOverviewKPIs() {
   }
 
   const range = getRange(filterState.type, filterState.value, filterState.year);
-  const saldoAcum = allEntries.reduce((acc, e) => {
+  const saldoBancos = allEntries.reduce((acc, e) => {
     if (parseDate(e.data) > range.end) return acc;
     const { delta } = entrySaldoImpact(e);
     return acc + delta;
   }, 0) + allInvestimentos.reduce((acc, inv) => {
     if (parseDate(inv.data) > range.end) return acc;
     const val = Number(inv.valor || 0);
+    return acc + (inv.movimento === "aporte" ? -val : val);
+  }, 0);
+  const carteiraInvest = allInvestimentos.reduce((acc, inv) => {
+    if (parseDate(inv.data) > range.end) return acc;
+    const val = Number(inv.valor || 0);
     return acc + (inv.movimento === "aporte" ? val : -val);
   }, 0);
-  animateKPI("kpi-patrimonio", saldoAcum);
+  animateKPI("kpi-patrimonio", saldoBancos + carteiraInvest);
 }
 
 // ============================================================
