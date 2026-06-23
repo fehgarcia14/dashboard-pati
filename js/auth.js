@@ -50,6 +50,9 @@ document.querySelectorAll("[data-landing]").forEach(btn => {
     document.getElementById("hero-geral").style.display = perfil === "geral" ? "" : "none";
 
     document.documentElement.setAttribute("data-perfil", perfil);
+    document.title = perfil === "geral"
+      ? "Ficha — Controle Financeiro para Profissionais"
+      : "Ficha — Controle Financeiro para Profissionais da Estética";
 
     // Sync signup profile selector if it exists
     const perfilHidden = document.getElementById("signup-perfil");

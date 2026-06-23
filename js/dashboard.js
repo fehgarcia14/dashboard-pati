@@ -44,7 +44,22 @@ const CATEGORIES_DESPESA = [
 ];
 
 const ALL_CATEGORIES = [...CATEGORIES_RECEITA, ...CATEGORIES_DESPESA];
-const catById = (id) => ALL_CATEGORIES.find((c) => c.id === id);
+
+const CATEGORY_LABELS_GERAL = {
+  vendas: "Vendas/Outros Serviços",
+  produtos: "Material & Suprimentos",
+  aluguel: "Aluguel de Escritório/Espaço",
+  taxas: "Taxas & Tarifas Bancárias",
+};
+
+function catById(id) {
+  const cat = ALL_CATEGORIES.find((c) => c.id === id);
+  if (!cat) return undefined;
+  if (perfilNegocio === "geral" && CATEGORY_LABELS_GERAL[id]) {
+    return { ...cat, label: CATEGORY_LABELS_GERAL[id] };
+  }
+  return cat;
+}
 
 const BANKS = [
   { id: "nubank",    label: "Nubank",           color: "#820AD1" },
@@ -96,7 +111,7 @@ let perfilNegocio = "salao";
 
 const WEBHOOK_URL = "https://dashboard-pati-webhook.vercel.app";
 
-const DEMO_ENTRIES = [
+const DEMO_ENTRIES_SALAO = [
   { id:'demo1', movimento:'entrada', tipo:'profissional', categoria:'servicos', valor:1500,
     data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
     fixo:false, descricao:'Atendimento — Limpeza de pele' },
@@ -106,6 +121,17 @@ const DEMO_ENTRIES = [
   { id:'demo3', movimento:'entrada', tipo:'profissional', categoria:'comissoes', valor:800,
     data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
     fixo:false, descricao:'Comissão — Semana 3' },
+];
+const DEMO_ENTRIES_GERAL = [
+  { id:'demo1', movimento:'entrada', tipo:'profissional', categoria:'servicos', valor:1500,
+    data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
+    fixo:false, descricao:'Consultoria — Projeto A' },
+  { id:'demo2', movimento:'saida', tipo:'pessoal', categoria:'alimentacao', valor:320,
+    data:todayStr(), banco:'inter', formaPagamento:'debito', statusPagamento:'pago',
+    fixo:false, descricao:'Supermercado' },
+  { id:'demo3', movimento:'entrada', tipo:'profissional', categoria:'comissoes', valor:800,
+    data:todayStr(), banco:'nubank', formaPagamento:'pix', statusPagamento:'pago',
+    fixo:false, descricao:'Honorários — Cliente B' },
 ];
 const DEMO_ATENDIMENTOS = [
   { id:'demo-a1', cliente:'Maria Silva', servicos:['Limpeza de pele'], valorTotal:150,
@@ -498,8 +524,8 @@ function listenPago() {
 }
 
 function loadDemoData() {
-  allEntries = [...DEMO_ENTRIES];
-  allAtendimentos = [...DEMO_ATENDIMENTOS];
+  allEntries = perfilNegocio === "geral" ? [...DEMO_ENTRIES_GERAL] : [...DEMO_ENTRIES_SALAO];
+  allAtendimentos = perfilNegocio === "geral" ? [] : [...DEMO_ATENDIMENTOS];
   allInvestimentos = [...DEMO_INVESTIMENTOS];
   allMetas = [...DEMO_METAS];
   allTransferencias = [];
@@ -1902,7 +1928,7 @@ function renderBudget() {
     return `<div class="budget-row">
       <div class="top-line">
         <span class="tag" style="display:flex;align-items:center;gap:8px;">
-          <span class="legend-dot" style="background:${cat.color}"></span>${cat.label}
+          <span class="legend-dot" style="background:${cat.color}"></span>${catById(cat.id)?.label || cat.label}
         </span>
         <span class="mono" style="font-size:0.82rem;">
           ${fmtBRL(gasto)} de
@@ -2284,7 +2310,7 @@ function populateEntryCategories() {
       if (options.length === 0) options = CATEGORIES_DESPESA;
     }
 
-    sel.innerHTML = options.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
+    sel.innerHTML = options.map(c => `<option value="${c.id}">${catById(c.id)?.label || c.label}</option>`).join("");
   } catch (err) {
     console.error("Erro ao popular categorias:", err);
   }
@@ -2911,14 +2937,18 @@ function renderGreeting() {
   const fatOntem = totalOf(allEntries.filter(e => e.data === ontemStr && e.movimento === "entrada"));
   if (fatOntem > 0) frases.push(`Ontem você faturou ${fmtBRL(fatOntem)}`);
 
-  const atendHoje = allAtendimentos.filter(a => a.data === hojeStr && a.status === "agendado");
-  if (atendHoje.length > 0) frases.push(`Você tem ${atendHoje.length} atendimento${atendHoje.length > 1 ? "s" : ""} agendado${atendHoje.length > 1 ? "s" : ""} pra hoje`);
+  if (perfilNegocio !== "geral") {
+    const atendHoje = allAtendimentos.filter(a => a.data === hojeStr && a.status === "agendado");
+    if (atendHoje.length > 0) frases.push(`Você tem ${atendHoje.length} atendimento${atendHoje.length > 1 ? "s" : ""} agendado${atendHoje.length > 1 ? "s" : ""} pra hoje`);
+  }
 
   const fatHoje = totalOf(allEntries.filter(e => e.data === hojeStr && e.movimento === "entrada"));
   if (fatHoje > 0 && fatOntem === 0) frases.push(`Hoje já faturou ${fmtBRL(fatHoje)}`);
 
   if (frases.length === 0) {
-    const msgs = ["Pronta pra mais um dia de sucesso?", "Bora organizar as finanças!", "Seu painel está atualizado."];
+    const msgs = perfilNegocio === "geral"
+      ? ["Pronto(a) pra mais um dia de sucesso?", "Bora organizar as finanças!", "Seu painel está atualizado."]
+      : ["Pronta pra mais um dia de sucesso?", "Bora organizar as finanças!", "Seu painel está atualizado."];
     frases.push(msgs[now.getDate() % msgs.length]);
   }
 
