@@ -602,12 +602,15 @@ async function handleComprarVersao(versao, btn) {
       body: JSON.stringify({ uid: currentUser.uid }),
     });
     const data = await res.json();
+    console.log("[compra] resposta webhook:", JSON.stringify(data));
     if (data.init_point) {
       window.location.href = data.init_point;
     } else {
+      console.error("[compra] sem init_point:", JSON.stringify(data));
       showDemoToast("Não foi possível iniciar o pagamento, tente novamente.");
     }
-  } catch {
+  } catch (err) {
+    console.error("[compra] erro:", err.message, err);
     showDemoToast("Não foi possível iniciar o pagamento, tente novamente.");
   } finally {
     if (btn) {
