@@ -513,6 +513,7 @@ function listenPago() {
     renderDemoBanner();
     if (!wasPago && usuarioPago) {
       loadRealData();
+      showWelcomeMessage();
     } else if (!usuarioPago && !wasPago) {
       loadDemoData();
     }
@@ -521,6 +522,21 @@ function listenPago() {
     loadDemoData();
     renderDemoBanner();
   });
+}
+
+function showWelcomeMessage() {
+  const overlay = document.getElementById("welcome-overlay");
+  if (!overlay) return;
+  const title = document.getElementById("welcome-title");
+  const msg = document.getElementById("welcome-msg");
+  if (perfilNegocio === "geral") {
+    title.textContent = "Acesso liberado!";
+    msg.textContent = "Seu painel financeiro completo está pronto — controle total de receitas, despesas, investimentos e metas.";
+  } else {
+    title.textContent = "Acesso liberado!";
+    msg.textContent = "Seu painel completo de Salão está pronto — com Agenda, Calcular Preço e todo o controle financeiro.";
+  }
+  overlay.style.display = "flex";
 }
 
 function loadDemoData() {
@@ -3320,6 +3336,13 @@ function initPaywall() {
   document.querySelectorAll(".preview-btn").forEach(btn => {
     btn.addEventListener("click", () => setPreview(btn.dataset.preview));
   });
+
+  const welcomeClose = document.getElementById("welcome-close");
+  if (welcomeClose) {
+    welcomeClose.addEventListener("click", () => {
+      document.getElementById("welcome-overlay").style.display = "none";
+    });
+  }
 
   const helpFab = document.getElementById("help-fab");
   const helpPop = document.getElementById("help-popover");
