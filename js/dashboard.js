@@ -944,6 +944,7 @@ function renderOverviewCharts() {
   renderHealthIndicator();
   renderDateReminder();
   renderBankCards();
+  renderTransferencias();
   renderContasVencer();
 
   clearTimeout(chartDebounceTimer);
@@ -1315,6 +1316,46 @@ function renderBankCards() {
       <span class="bank-value">${fmtBRL(val)}</span>
     </div>`;
   }).join("");
+}
+
+function renderTransferencias() {
+  const panel = document.getElementById("panel-transferencias");
+  const container = document.getElementById("transferencias-list");
+  const countEl = document.getElementById("transf-count");
+  if (!panel || !container) return;
+
+  if (allTransferencias.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+  const sorted = allTransferencias.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
+  countEl.textContent = `${sorted.length} transferência${sorted.length !== 1 ? "s" : ""}`;
+
+  container.innerHTML = sorted.map(t => {
+    const bOrigem = bankById(t.bancoOrigem || "outro");
+    const bDestino = bankById(t.bancoDestino || "outro");
+    const d = parseDate(t.data);
+    const dateStr = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+    return `<div class="transf-row">
+      <span>${dateStr}</span>
+      <span class="cat-pill" style="background:${bOrigem.color}22;color:${bOrigem.color}">${bOrigem.label}</span>
+      <span>→</span>
+      <span class="cat-pill" style="background:${bDestino.color}22;color:${bDestino.color}">${bDestino.label}</span>
+      <span class="mono">${fmtBRL(t.valor)}</span>
+      <button class="icon-btn" data-del-transf="${t.id}" title="Excluir">🗑</button>
+    </div>`;
+  }).join("");
+
+  container.querySelectorAll("[data-del-transf]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (demoGuard()) return;
+      if (!confirm("Excluir esta transferência?")) return;
+      await deleteDoc(doc(db, "usuarios", currentUser.uid, "transferencias", btn.dataset.delTransf));
+      showToast("Transferência excluída.");
+    });
+  });
 }
 
 // ============================================================
