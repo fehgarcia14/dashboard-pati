@@ -107,6 +107,8 @@ let currentView = 'overview';
 let chartDebounceTimer = null;
 let skeletonRemoved = false;
 let usuarioPago = false;
+let pagoSalao = false;
+let pagoGeral = false;
 let perfilNegocio = "salao";
 
 const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
@@ -504,21 +506,33 @@ function listenTransferencias() {
 function listenPago() {
   const ref = doc(db, "usuarios", currentUser.uid);
   unsubPago = onSnapshot(ref, (snap) => {
-    const wasPago = usuarioPago;
-    usuarioPago = snap.exists() && snap.data().pago === true;
-    if (snap.exists()) {
-      const p = snap.data().perfilNegocio || "salao";
-      if (p !== perfilNegocio) { perfilNegocio = p; applyPerfil(p); }
-    }
+    if (!snap.exists()) { usuarioPago = false; loadDemoData(); renderDemoBanner(); return; }
+    const d = snap.data();
+    const p = d.perfilNegocio || "salao";
+    if (p !== perfilNegocio) { perfilNegocio = p; applyPerfil(p); }
+
+    const wasPagoSalao = pagoSalao;
+    const wasPagoGeral = pagoGeral;
+    const isLegacy = d.pago === true && !d.pagoGeral && !d.pagoSalao;
+    pagoSalao = d.pagoSalao === true || isLegacy;
+    pagoGeral = d.pagoGeral === true || isLegacy;
+
+    const wasPerfilPago = usuarioPago;
+    usuarioPago = perfilNegocio === "geral" ? pagoGeral : pagoSalao;
+
     renderDemoBanner();
-    if (!wasPago && usuarioPago) {
+    if (!wasPerfilPago && usuarioPago) {
       loadRealData();
-      showWelcomeMessage();
-    } else if (!usuarioPago && !wasPago) {
+      if (!isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
+        showWelcomeMessage();
+      }
+    } else if (!usuarioPago) {
       loadDemoData();
     }
   }, () => {
     usuarioPago = false;
+    pagoSalao = false;
+    pagoGeral = false;
     loadDemoData();
     renderDemoBanner();
   });
@@ -587,8 +601,22 @@ function renderDemoBanner() {
 
   const btnSalao = document.getElementById("btn-comprar-salao");
   const btnGeral = document.getElementById("btn-comprar-geral");
-  if (btnSalao) btnSalao.classList.toggle("selected", activePerfil === "salao");
-  if (btnGeral) btnGeral.classList.toggle("selected", activePerfil === "geral");
+  if (btnSalao) {
+    btnSalao.classList.toggle("selected", activePerfil === "salao");
+    if (pagoSalao) {
+      btnSalao.disabled = true;
+      btnSalao.querySelector(".comprar-label").textContent = "✓ Salão adquirido";
+      btnSalao.querySelector(".comprar-preco").textContent = "";
+    }
+  }
+  if (btnGeral) {
+    btnGeral.classList.toggle("selected", activePerfil === "geral");
+    if (pagoGeral) {
+      btnGeral.disabled = true;
+      btnGeral.querySelector(".comprar-label").textContent = "✓ Geral adquirido";
+      btnGeral.querySelector(".comprar-preco").textContent = "";
+    }
+  }
 
   document.querySelectorAll(".preview-btn").forEach(b => {
     b.classList.toggle("active", b.dataset.preview === activePerfil);
@@ -615,7 +643,7 @@ async function handleComprarVersao(versao, btn) {
     const res = await fetch(`${WEBHOOK_URL}/api/create-preference`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: currentUser.uid }),
+      body: JSON.stringify({ uid: currentUser.uid, versao }),
     });
     const data = await res.json();
     if (data.init_point) {
