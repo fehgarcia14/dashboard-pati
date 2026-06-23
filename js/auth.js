@@ -49,6 +49,9 @@ document.querySelectorAll("[data-landing]").forEach(btn => {
     document.getElementById("hero-salao").style.display = perfil === "salao" ? "" : "none";
     document.getElementById("hero-geral").style.display = perfil === "geral" ? "" : "none";
 
+    const brandImg = document.getElementById("brand-photo-img");
+    if (brandImg) brandImg.src = perfil === "geral" ? "assets/logo-geral.png" : "assets/logo-salao.png";
+
     document.documentElement.setAttribute("data-perfil", perfil);
     document.title = perfil === "geral"
       ? "Ficha — Controle Financeiro para Profissionais"
@@ -108,6 +111,9 @@ perfilCards.forEach(card => {
     document.getElementById("hero-salao").style.display = perfil === "salao" ? "" : "none";
     document.getElementById("hero-geral").style.display = perfil === "geral" ? "" : "none";
     document.documentElement.setAttribute("data-perfil", perfil);
+
+    const brandImg = document.getElementById("brand-photo-img");
+    if (brandImg) brandImg.src = perfil === "geral" ? "assets/logo-geral.png" : "assets/logo-salao.png";
   });
 });
 
