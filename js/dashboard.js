@@ -392,6 +392,10 @@ function initFilters() {
     filterState.year = new Date().getFullYear();
     typeSel.value = "month";
     yearSel.value = String(filterState.year);
+    entriesMovFilter = "todos";
+    document.querySelectorAll("[data-filter-mov]").forEach(b => {
+      b.classList.toggle("active", b.dataset.filterMov === "todos");
+    });
     populateValueSelect();
     renderAll();
   });
@@ -460,6 +464,7 @@ function filteredEntries() {
 // FIRESTORE LISTENERS
 // ============================================================
 function listenEntries() {
+  if (unsubEntries) unsubEntries();
   const ref = collection(db, "usuarios", currentUser.uid, "lancamentos");
   unsubEntries = onSnapshot(query(ref), (snap) => {
     allEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -470,6 +475,7 @@ function listenEntries() {
 }
 
 function listenAtendimentos() {
+  if (unsubAtend) unsubAtend();
   const ref = collection(db, "usuarios", currentUser.uid, "atendimentos");
   unsubAtend = onSnapshot(query(ref), (snap) => {
     allAtendimentos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -481,6 +487,7 @@ function listenAtendimentos() {
 }
 
 function listenInvestimentos() {
+  if (unsubInvest) unsubInvest();
   const ref = collection(db, "usuarios", currentUser.uid, "investimentos");
   unsubInvest = onSnapshot(query(ref), (snap) => {
     allInvestimentos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -491,6 +498,7 @@ function listenInvestimentos() {
 }
 
 function listenMetas() {
+  if (unsubMetas) unsubMetas();
   const ref = collection(db, "usuarios", currentUser.uid, "metas");
   unsubMetas = onSnapshot(query(ref), (snap) => {
     allMetas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -499,6 +507,7 @@ function listenMetas() {
 }
 
 function listenTransferencias() {
+  if (unsubTransf) unsubTransf();
   const ref = collection(db, "usuarios", currentUser.uid, "transferencias");
   unsubTransf = onSnapshot(query(ref), (snap) => {
     allTransferencias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -2655,9 +2664,10 @@ async function handleEntrySubmit(e) {
       await addDoc(collection(db, "usuarios", currentUser.uid, "lancamentos"), payload);
       showToast("Lançamento adicionado.");
     }
-    closeModal("modal-entry");
-    document.getElementById("entry-form").reset();
     editingEntryId = null;
+    document.getElementById("entry-form").reset();
+    document.getElementById("entry-error").textContent = "";
+    closeModal("modal-entry");
   } catch (err) {
     console.error(err);
     errEl.textContent = "Não foi possível salvar.";
@@ -2804,9 +2814,10 @@ async function handleAtendSubmit(e) {
       }
     }
 
-    closeModal("modal-atendimento");
-    document.getElementById("atend-form").reset();
     editingAtendId = null;
+    document.getElementById("atend-form").reset();
+    document.getElementById("atend-error").textContent = "";
+    closeModal("modal-atendimento");
   } catch (err) {
     console.error(err);
     errEl.textContent = "Não foi possível salvar.";
@@ -2908,9 +2919,10 @@ async function handleInvSubmit(e) {
       await addDoc(collection(db, "usuarios", currentUser.uid, "investimentos"), payload);
       showToast("Movimento registrado.");
     }
-    closeModal("modal-investimento");
-    document.getElementById("inv-form").reset();
     editingInvId = null;
+    document.getElementById("inv-form").reset();
+    document.getElementById("inv-error").textContent = "";
+    closeModal("modal-investimento");
   } catch (err) {
     console.error(err);
     errEl.textContent = "Não foi possível salvar.";
@@ -2969,9 +2981,10 @@ async function handleMetaSubmit(e) {
       });
       showToast("Meta criada.");
     }
-    closeModal("modal-meta");
-    document.getElementById("meta-form").reset();
     editingMetaId = null;
+    document.getElementById("meta-form").reset();
+    document.getElementById("meta-error").textContent = "";
+    closeModal("modal-meta");
   } catch (err) {
     console.error("Erro ao salvar meta:", err);
     errEl.textContent = err.code === "permission-denied"
