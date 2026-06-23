@@ -517,6 +517,14 @@ function listenPago() {
     pagoSalao = d.pagoSalao === true || isLegacy;
     pagoGeral = d.pagoGeral === true || isLegacy;
 
+    if (!wasPagoGeral && pagoGeral && !pagoSalao && perfilNegocio !== "geral") {
+      perfilNegocio = "geral";
+      applyPerfil("geral");
+    } else if (!wasPagoSalao && pagoSalao && !pagoGeral && perfilNegocio !== "salao") {
+      perfilNegocio = "salao";
+      applyPerfil("salao");
+    }
+
     const wasPerfilPago = usuarioPago;
     usuarioPago = perfilNegocio === "geral" ? pagoGeral : pagoSalao;
 
