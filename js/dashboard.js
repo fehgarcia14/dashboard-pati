@@ -109,6 +109,7 @@ let skeletonRemoved = false;
 let usuarioPago = false;
 let pagoSalao = false;
 let pagoGeral = false;
+let welcomeShown = false;
 let perfilNegocio = "salao";
 
 const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
@@ -539,7 +540,8 @@ function listenPago() {
       allMetas = [];
       allTransferencias = [];
       loadRealData();
-      if (!isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
+      if (!welcomeShown && !isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
+        welcomeShown = true;
         showWelcomeMessage();
       }
     } else if (usuarioPago) {
