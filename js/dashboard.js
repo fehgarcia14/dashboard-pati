@@ -275,6 +275,27 @@ function initMobileMenu() {
       if (window.innerWidth <= 900) closeSidebar();
     });
   });
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener("touchstart", (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+
+    if (dx > 0 && touchStartX < 30 && !sidebar.classList.contains("open")) {
+      sidebar.classList.add("open");
+      hamburger.classList.add("active");
+      overlay.classList.add("active");
+    } else if (dx < 0 && sidebar.classList.contains("open")) {
+      closeSidebar();
+    }
+  }, { passive: true });
 }
 
 // ============================================================
