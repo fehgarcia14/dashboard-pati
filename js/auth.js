@@ -39,6 +39,41 @@ tabs.forEach((tab) => {
   });
 });
 
+// ---------- Preview de versão na landing page ----------
+document.querySelectorAll("[data-landing]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const perfil = btn.dataset.landing;
+    document.querySelectorAll("[data-landing]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    document.getElementById("hero-salao").style.display = perfil === "salao" ? "" : "none";
+    document.getElementById("hero-geral").style.display = perfil === "geral" ? "" : "none";
+
+    document.documentElement.setAttribute("data-perfil", perfil);
+
+    // Sync signup profile selector if it exists
+    const perfilHidden = document.getElementById("signup-perfil");
+    if (perfilHidden) {
+      perfilHidden.value = perfil;
+      document.querySelectorAll(".perfil-card").forEach(c => {
+        c.classList.toggle("active", c.dataset.perfil === perfil);
+      });
+      const fArea = document.getElementById("field-area");
+      const fGeral = document.getElementById("field-area-geral");
+      const aSel = document.getElementById("signup-area");
+      if (perfil === "salao") {
+        fArea.style.display = "";
+        aSel.required = true;
+        fGeral.style.display = "none";
+      } else {
+        fArea.style.display = "none";
+        aSel.required = false;
+        fGeral.style.display = "";
+      }
+    }
+  });
+});
+
 // ---------- Seleção de perfil no cadastro ----------
 const perfilCards = document.querySelectorAll(".perfil-card");
 const perfilInput = document.getElementById("signup-perfil");
@@ -62,6 +97,14 @@ perfilCards.forEach(card => {
       areaSelect.required = false;
       fieldAreaGeral.style.display = "";
     }
+
+    // Sync landing preview
+    document.querySelectorAll("[data-landing]").forEach(b => {
+      b.classList.toggle("active", b.dataset.landing === perfil);
+    });
+    document.getElementById("hero-salao").style.display = perfil === "salao" ? "" : "none";
+    document.getElementById("hero-geral").style.display = perfil === "geral" ? "" : "none";
+    document.documentElement.setAttribute("data-perfil", perfil);
   });
 });
 

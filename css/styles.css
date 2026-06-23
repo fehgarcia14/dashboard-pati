@@ -336,6 +336,39 @@ button {
   color: rgba(255,255,255,0.55);
 }
 
+.landing-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.landing-preview .preview-label {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.7);
+}
+.landing-preview .preview-btn {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 2;
+}
+.landing-preview .preview-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+.landing-preview .preview-btn.active {
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  border-color: rgba(255,255,255,0.5);
+}
+
 .auth-panel {
   display: flex;
   align-items: center;
