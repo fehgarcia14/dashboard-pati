@@ -16,7 +16,29 @@
 
   <div class="demo-banner" id="demo-banner" style="display:none;">
     <span class="demo-banner-text">Modo demonstração — dados fictícios, nada é salvo</span>
-    <button class="btn btn-comprar" id="btn-comprar">Liberar acesso completo — R$50</button>
+    <div class="preview-toggle" id="preview-toggle">
+      <span class="preview-label">Pré-visualizar:</span>
+      <button class="preview-btn active" data-preview="salao">Salão</button>
+      <button class="preview-btn" data-preview="geral">Geral</button>
+    </div>
+    <div class="comprar-opcoes">
+      <div class="comprar-opcao-wrap">
+        <button class="btn btn-comprar-versao" id="btn-comprar-salao" data-versao="salao">
+          <span class="comprar-icon">💇</span>
+          <span class="comprar-label">Comprar versão Salão</span>
+          <span class="comprar-preco">R$50</span>
+        </button>
+        <p class="comprar-desc">Feito pra quem atende clientes: agenda integrada, cálculo de preço de serviço, e todo o controle financeiro do seu negócio de beleza.</p>
+      </div>
+      <div class="comprar-opcao-wrap">
+        <button class="btn btn-comprar-versao" id="btn-comprar-geral" data-versao="geral">
+          <span class="comprar-icon">💼</span>
+          <span class="comprar-label">Comprar versão Geral</span>
+          <span class="comprar-preco">R$50</span>
+        </button>
+        <p class="comprar-desc">Pra qualquer profissão — advogado(a), engenheiro(a), autônomo(a) ou freelancer: todo o controle financeiro, sem as ferramentas específicas de salão.</p>
+      </div>
+    </div>
     <p class="demo-banner-sub">Pagamento único, acesso para sempre</p>
     <p class="demo-banner-links">
       <a href="https://youtu.be/-reIijE72IE" target="_blank" rel="noopener noreferrer">📺 Ver tutorial</a>

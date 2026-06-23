@@ -83,7 +83,23 @@
             <label for="signup-name">Seu nome</label>
             <input type="text" id="signup-name" required autocomplete="name" />
           </div>
+
           <div class="field">
+            <label>Qual é o seu perfil?</label>
+            <div class="perfil-selector">
+              <button type="button" class="perfil-card active" data-perfil="salao">
+                <span class="perfil-icon">💅</span>
+                <span class="perfil-label">Profissional da estética/salão</span>
+              </button>
+              <button type="button" class="perfil-card" data-perfil="geral">
+                <span class="perfil-icon">💼</span>
+                <span class="perfil-label">Outra profissão</span>
+              </button>
+            </div>
+            <input type="hidden" id="signup-perfil" value="salao" />
+          </div>
+
+          <div class="field" id="field-area">
             <label for="signup-area">Área de atuação</label>
             <select id="signup-area" required>
               <option value="" disabled selected>Selecione</option>
@@ -97,6 +113,11 @@
               <option value="outro">Outra área da beleza</option>
             </select>
           </div>
+          <div class="field" id="field-area-geral" style="display:none;">
+            <label for="signup-area-geral">Profissão</label>
+            <input type="text" id="signup-area-geral" placeholder="Ex: Advogado, Engenheiro, Freelancer..." />
+          </div>
+
           <div class="field">
             <label for="signup-email">E-mail</label>
             <input type="email" id="signup-email" required autocomplete="email" />

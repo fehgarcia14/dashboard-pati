@@ -130,8 +130,8 @@ async function run() {
     );
     check("Banner has correct text", bannerText.includes("demonstração"), true);
 
-    // Check buy button exists
-    const btnExists = await page.evaluate(() => !!document.getElementById('btn-comprar'));
+    // Check buy buttons exist (versão Salão and versão Geral)
+    const btnExists = await page.evaluate(() => !!document.getElementById('btn-comprar-salao') && !!document.getElementById('btn-comprar-geral'));
     check("Buy button exists", btnExists, true);
 
     // Check demo data is loaded (should have entries)

@@ -39,6 +39,32 @@ tabs.forEach((tab) => {
   });
 });
 
+// ---------- Seleção de perfil no cadastro ----------
+const perfilCards = document.querySelectorAll(".perfil-card");
+const perfilInput = document.getElementById("signup-perfil");
+const fieldArea = document.getElementById("field-area");
+const fieldAreaGeral = document.getElementById("field-area-geral");
+const areaSelect = document.getElementById("signup-area");
+
+perfilCards.forEach(card => {
+  card.addEventListener("click", () => {
+    perfilCards.forEach(c => c.classList.remove("active"));
+    card.classList.add("active");
+    const perfil = card.dataset.perfil;
+    perfilInput.value = perfil;
+
+    if (perfil === "salao") {
+      fieldArea.style.display = "";
+      areaSelect.required = true;
+      fieldAreaGeral.style.display = "none";
+    } else {
+      fieldArea.style.display = "none";
+      areaSelect.required = false;
+      fieldAreaGeral.style.display = "";
+    }
+  });
+});
+
 // ---------- Cadastro ----------
 const signupForm = document.getElementById("signup-form");
 const signupError = document.getElementById("signup-error");
@@ -48,7 +74,10 @@ signupForm.addEventListener("submit", async (e) => {
   signupError.textContent = "";
 
   const name = document.getElementById("signup-name").value.trim();
-  const area = document.getElementById("signup-area").value;
+  const perfil = perfilInput.value;
+  const area = perfil === "salao"
+    ? areaSelect.value
+    : (document.getElementById("signup-area-geral").value.trim() || "geral");
   const email = document.getElementById("signup-email").value.trim();
   const password = document.getElementById("signup-password").value;
   const btn = signupForm.querySelector("button[type=submit]");
@@ -69,6 +98,7 @@ signupForm.addEventListener("submit", async (e) => {
       nome: name,
       area: area,
       email: email,
+      perfilNegocio: perfil,
       criadoEm: serverTimestamp(),
       orcamentos: {}
     });

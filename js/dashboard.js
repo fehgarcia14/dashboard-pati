@@ -91,6 +91,7 @@ let currentView = 'overview';
 let chartDebounceTimer = null;
 let skeletonRemoved = false;
 let usuarioPago = false;
+let perfilNegocio = "salao";
 
 const WEBHOOK_URL = "https://dashboard-pati-webhook.vercel.app";
 
@@ -128,6 +129,9 @@ onAuthStateChanged(auth, async (user) => {
   const snap = await getDoc(doc(db, "usuarios", user.uid));
   if (snap.exists()) userProfile = { orcamentos: {}, ...snap.data() };
 
+  perfilNegocio = userProfile.perfilNegocio || "salao";
+  applyPerfil(perfilNegocio);
+
   document.getElementById("user-name").textContent = userProfile.nome || user.email;
   document.getElementById("user-area").textContent = areaLabel(userProfile.area);
 
@@ -163,7 +167,25 @@ function areaLabel(a) {
   const m = { manicure:"Manicure & Pedicure", esteticista:"Esteticista", cabeleireiro:"Cabeleireiro(a)",
     maquiador:"Maquiador(a)", depilador:"Depilador(a)", barbeiro:"Barbeiro(a)",
     massoterapeuta:"Massoterapeuta", outro:"Profissional da beleza" };
+  if (perfilNegocio === "geral") return a && a !== "geral" ? a : "Profissional";
   return m[a] || "Profissional da beleza";
+}
+
+function applyPerfil(perfil) {
+  const isGeral = perfil === "geral";
+  document.documentElement.setAttribute("data-perfil", perfil);
+
+  document.querySelectorAll('[data-view="agenda"]').forEach(el => {
+    el.style.display = isGeral ? "none" : "";
+  });
+
+  const btnCalcPreco = document.getElementById("btn-calc-preco");
+  if (btnCalcPreco) btnCalcPreco.style.display = isGeral ? "none" : "";
+
+  if (isGeral && currentView === "agenda") {
+    const overviewBtn = document.querySelector('[data-view="overview"]');
+    if (overviewBtn) overviewBtn.click();
+  }
 }
 
 // ============================================================
@@ -448,6 +470,10 @@ function listenPago() {
   unsubPago = onSnapshot(ref, (snap) => {
     const wasPago = usuarioPago;
     usuarioPago = snap.exists() && snap.data().pago === true;
+    if (snap.exists()) {
+      const p = snap.data().perfilNegocio || "salao";
+      if (p !== perfilNegocio) { perfilNegocio = p; applyPerfil(p); }
+    }
     renderDemoBanner();
     if (!wasPago && usuarioPago) {
       loadRealData();
@@ -495,10 +521,23 @@ function showDemoToast(msg) {
   toastTimer = setTimeout(() => { t.className = "toast"; }, 3500);
 }
 
+let previewPerfil = null;
+
 function renderDemoBanner() {
   const banner = document.getElementById("demo-banner");
   if (!banner) return;
   banner.style.display = usuarioPago ? "none" : "flex";
+
+  const activePerfil = previewPerfil || perfilNegocio;
+
+  const btnSalao = document.getElementById("btn-comprar-salao");
+  const btnGeral = document.getElementById("btn-comprar-geral");
+  if (btnSalao) btnSalao.classList.toggle("selected", activePerfil === "salao");
+  if (btnGeral) btnGeral.classList.toggle("selected", activePerfil === "geral");
+
+  document.querySelectorAll(".preview-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.preview === activePerfil);
+  });
 
   const pending = document.getElementById("payment-pending");
   if (pending) {
@@ -507,11 +546,17 @@ function renderDemoBanner() {
   }
 }
 
-async function handleComprarAcesso() {
+function setPreview(perfil) {
+  previewPerfil = perfil;
+  applyPerfil(perfil);
+  renderDemoBanner();
+}
+
+async function handleComprarVersao(versao, btn) {
   if (!currentUser) return;
-  const btn = document.getElementById("btn-comprar");
-  if (btn) { btn.disabled = true; btn.textContent = "Aguarde..."; }
+  if (btn) { btn.disabled = true; btn.querySelector(".comprar-label").textContent = "Aguarde..."; }
   try {
+    await updateDoc(doc(db, "usuarios", currentUser.uid), { perfilNegocio: versao });
     const res = await fetch(`${WEBHOOK_URL}/api/create-preference`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -526,7 +571,11 @@ async function handleComprarAcesso() {
   } catch {
     showDemoToast("Não foi possível iniciar o pagamento, tente novamente.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Liberar acesso completo — R$50"; }
+    if (btn) {
+      btn.disabled = false;
+      const label = versao === "salao" ? "Comprar versão Salão" : "Comprar versão Geral";
+      btn.querySelector(".comprar-label").textContent = label;
+    }
   }
 }
 
@@ -2100,7 +2149,7 @@ function initModals() {
   document.getElementById("fab-add").addEventListener("click", () => {
     const view = document.querySelector(".nav-item.active")?.dataset.view;
     if (view === "investments") openInvModal(null);
-    else if (view === "agenda") openAtendModal(null);
+    else if (view === "agenda" && perfilNegocio !== "geral") openAtendModal(null);
     else if (view === "metas") openMetaModal(null);
     else openEntryModal(null);
   });
@@ -3086,8 +3135,13 @@ function fireConfetti() {
 // PAYWALL — init
 // ============================================================
 function initPaywall() {
-  const btn = document.getElementById("btn-comprar");
-  if (btn) btn.addEventListener("click", handleComprarAcesso);
+  document.querySelectorAll(".btn-comprar-versao").forEach(btn => {
+    btn.addEventListener("click", () => handleComprarVersao(btn.dataset.versao, btn));
+  });
+
+  document.querySelectorAll(".preview-btn").forEach(btn => {
+    btn.addEventListener("click", () => setPreview(btn.dataset.preview));
+  });
 
   const helpFab = document.getElementById("help-fab");
   const helpPop = document.getElementById("help-popover");
