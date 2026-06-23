@@ -595,7 +595,7 @@ async function handleComprarVersao(versao, btn) {
   if (!currentUser) return;
   if (btn) { btn.disabled = true; btn.querySelector(".comprar-label").textContent = "Aguarde..."; }
   try {
-    await updateDoc(doc(db, "usuarios", currentUser.uid), { perfilNegocio: versao });
+    try { await updateDoc(doc(db, "usuarios", currentUser.uid), { perfilNegocio: versao }); } catch {}
     const res = await fetch(`${WEBHOOK_URL}/api/create-preference`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
