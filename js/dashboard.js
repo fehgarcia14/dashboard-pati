@@ -81,7 +81,8 @@ let allEntries = [];
 let allAtendimentos = [];
 let allInvestimentos = [];
 let allMetas = [];
-let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null, unsubPago = null;
+let allTransferencias = [];
+let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null, unsubTransf = null, unsubPago = null;
 let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMetaId = null;
 let appInitialized = false;
 let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
@@ -159,6 +160,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
   if (unsubAtend) unsubAtend();
   if (unsubInvest) unsubInvest();
   if (unsubMetas) unsubMetas();
+  if (unsubTransf) unsubTransf();
   await signOut(auth);
   window.location.href = "index.html";
 });
@@ -462,6 +464,14 @@ function listenMetas() {
   }, () => showToast("Erro ao carregar metas."));
 }
 
+function listenTransferencias() {
+  const ref = collection(db, "usuarios", currentUser.uid, "transferencias");
+  unsubTransf = onSnapshot(query(ref), (snap) => {
+    allTransferencias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, () => showToast("Erro ao carregar transferências."));
+}
+
 // ============================================================
 // PAYWALL — listener & guard
 // ============================================================
@@ -492,10 +502,12 @@ function loadDemoData() {
   allAtendimentos = [...DEMO_ATENDIMENTOS];
   allInvestimentos = [...DEMO_INVESTIMENTOS];
   allMetas = [...DEMO_METAS];
+  allTransferencias = [];
   if (unsubEntries) { unsubEntries(); unsubEntries = null; }
   if (unsubAtend) { unsubAtend(); unsubAtend = null; }
   if (unsubInvest) { unsubInvest(); unsubInvest = null; }
   if (unsubMetas) { unsubMetas(); unsubMetas = null; }
+  if (unsubTransf) { unsubTransf(); unsubTransf = null; }
   removeSkeleton();
   renderAll();
 }
@@ -505,6 +517,7 @@ function loadRealData() {
   listenAtendimentos();
   listenInvestimentos();
   listenMetas();
+  listenTransferencias();
 }
 
 function demoGuard() {
@@ -1081,6 +1094,25 @@ function renderBankCards() {
     const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     saldo[bk] = (saldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
+  });
+
+  allMetas.forEach(m => {
+    const bk = m.banco || "outro";
+    (m.aportes || []).forEach(a => {
+      if (parseDate(a.data) > range.end) return;
+      saldo[bk] = (saldo[bk] || 0) - Number(a.valor || 0);
+    });
+    if (m.resgate && parseDate(m.resgate.data) <= range.end) {
+      const destBk = m.resgate.bancoDestino || bk;
+      saldo[destBk] = (saldo[destBk] || 0) + Number(m.valorAtual || 0);
+    }
+  });
+
+  allTransferencias.forEach(t => {
+    if (parseDate(t.data) > range.end) return;
+    const val = Number(t.valor || 0);
+    saldo[t.bancoOrigem || "outro"] = (saldo[t.bancoOrigem || "outro"] || 0) - val;
+    saldo[t.bancoDestino || "outro"] = (saldo[t.bancoDestino || "outro"] || 0) + val;
   });
 
   const entries = Object.entries(saldo).filter(([, v]) => v !== 0).sort((a, b) => b[1] - a[1]);
@@ -1800,28 +1832,30 @@ function renderMetas() {
     const pct = Math.min(100, (atual / m.valorObjetivo) * 100);
     const restante = Math.max(0, m.valorObjetivo - atual);
     const isConcluida = atual >= m.valorObjetivo;
+    const isResgatada = m.status === "resgatada";
     const dias = daysBetween(m.dataLimite, now);
-    const deadlineClass = dias < 0 && !isConcluida ? "vencida" : "";
-    const deadlineText = isConcluida ? "Concluída!" :
+    const deadlineClass = dias < 0 && !isConcluida && !isResgatada ? "vencida" : "";
+    const bancoLabel = m.banco ? bankById(m.banco).label : "";
+    const deadlineText = isResgatada ? "Resgatada" :
+                         isConcluida ? "🔒 Meta atingida" :
                          dias < 0 ? `Vencida há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""}` :
                          dias === 0 ? "Vence hoje" :
                          `${dias} dia${dias !== 1 ? "s" : ""} restante${dias !== 1 ? "s" : ""}`;
 
-    return `<div class="meta-card ${isConcluida ? "concluida" : ""}">
-      <div class="meta-nome">${escapeHtml(m.nome)}</div>
+    return `<div class="meta-card ${isConcluida ? "concluida" : ""} ${isResgatada ? "resgatada" : ""}">
+      <div class="meta-nome">${escapeHtml(m.nome)}${bancoLabel ? ` <span class="meta-banco-tag">${bancoLabel}</span>` : ""}</div>
       <div class="meta-progress-track"><div class="meta-progress-fill" style="width:${pct}%"></div></div>
       <div class="meta-stats">
         <span><span class="mono">${fmtBRL(atual)}</span> de ${fmtBRL(m.valorObjetivo)}</span>
         <span class="mono">${Math.round(pct)}%</span>
       </div>
-      <div class="meta-stats">
-        <span>Falta: <span class="mono">${fmtBRL(restante)}</span></span>
-      </div>
+      ${!isConcluida && !isResgatada ? `<div class="meta-stats"><span>Falta: <span class="mono">${fmtBRL(restante)}</span></span></div>` : ""}
       <div class="meta-footer">
         <span class="meta-deadline ${deadlineClass}">${deadlineText}</span>
         <div class="meta-actions">
-          ${!isConcluida ? `<button class="btn-sm btn-sage" data-aporte-meta="${m.id}">+ Aporte</button>` : ""}
-          <button class="icon-btn" data-edit-meta="${m.id}" title="Editar">✎</button>
+          ${!isConcluida && !isResgatada ? `<button class="btn-sm btn-sage" data-aporte-meta="${m.id}">+ Aporte</button>` : ""}
+          ${isConcluida && !isResgatada ? `<button class="btn-sm btn-gold" data-resgate-meta="${m.id}">Resgatar</button>` : ""}
+          ${!isConcluida && !isResgatada ? `<button class="icon-btn" data-edit-meta="${m.id}" title="Editar">✎</button>` : ""}
           <button class="icon-btn" data-del-meta="${m.id}" title="Excluir">🗑</button>
         </div>
       </div>
@@ -1830,6 +1864,9 @@ function renderMetas() {
 
   container.querySelectorAll("[data-aporte-meta]").forEach(btn => {
     btn.addEventListener("click", () => openAporteModal(btn.dataset.aporteMeta));
+  });
+  container.querySelectorAll("[data-resgate-meta]").forEach(btn => {
+    btn.addEventListener("click", () => openResgateModal(btn.dataset.resgateMeta));
   });
   container.querySelectorAll("[data-edit-meta]").forEach(btn => {
     btn.addEventListener("click", () => openMetaModal(allMetas.find(m => m.id === btn.dataset.editMeta)));
@@ -2159,6 +2196,8 @@ function initModals() {
   initInvModal();
   initMetaModal();
   initAporteModal();
+  initResgateModal();
+  initTransferModal();
   initCalcPreco();
   initShareCard();
   initConfettiToggle();
@@ -2646,6 +2685,7 @@ async function handleInvSubmit(e) {
 // META MODAL (Parte 3.1)
 // ============================================================
 function initMetaModal() {
+  populateBankSelect("meta-banco");
   document.getElementById("meta-form").addEventListener("submit", handleMetaSubmit);
 }
 
@@ -2658,6 +2698,7 @@ function openMetaModal(meta) {
   document.getElementById("meta-nome").value = meta?.nome || "";
   document.getElementById("meta-valor-objetivo").value = meta?.valorObjetivo || "";
   document.getElementById("meta-data-limite").value = meta?.dataLimite || "";
+  document.getElementById("meta-banco").value = meta?.banco || "nubank";
 
   document.getElementById("modal-meta").classList.add("active");
 }
@@ -2670,6 +2711,7 @@ async function handleMetaSubmit(e) {
   const nome = document.getElementById("meta-nome").value.trim();
   const valorObjetivo = Number(document.getElementById("meta-valor-objetivo").value);
   const dataLimite = document.getElementById("meta-data-limite").value;
+  const banco = document.getElementById("meta-banco").value;
 
   if (!nome) { errEl.textContent = "Informe o nome da meta."; return; }
   if (!valorObjetivo || valorObjetivo <= 0) { errEl.textContent = "Informe um valor válido."; return; }
@@ -2680,11 +2722,11 @@ async function handleMetaSubmit(e) {
 
   try {
     if (editingMetaId) {
-      await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", editingMetaId), { nome, valorObjetivo, dataLimite });
+      await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", editingMetaId), { nome, valorObjetivo, dataLimite, banco });
       showToast("Meta atualizada.");
     } else {
       await addDoc(collection(db, "usuarios", currentUser.uid, "metas"), {
-        nome, valorObjetivo, dataLimite, valorAtual: 0, criadoEm: serverTimestamp()
+        nome, valorObjetivo, dataLimite, banco, valorAtual: 0, aportes: [], status: "ativa", criadoEm: serverTimestamp()
       });
       showToast("Meta criada.");
     }
@@ -2710,6 +2752,7 @@ function initAporteModal() {
 function openAporteModal(metaId) {
   document.getElementById("aporte-meta-id").value = metaId;
   document.getElementById("aporte-valor").value = "";
+  document.getElementById("aporte-data").value = todayStr();
   document.getElementById("aporte-error").textContent = "";
   document.getElementById("modal-aporte").classList.add("active");
 }
@@ -2721,18 +2764,24 @@ async function handleAporteSubmit(e) {
   const btn = document.getElementById("aporte-submit");
   const metaId = document.getElementById("aporte-meta-id").value;
   const valor = Number(document.getElementById("aporte-valor").value);
+  const data = document.getElementById("aporte-data").value;
 
   if (!valor || valor <= 0) { errEl.textContent = "Informe um valor válido."; return; }
+  if (!data) { errEl.textContent = "Informe a data."; return; }
 
   const meta = allMetas.find(m => m.id === metaId);
   if (!meta) { errEl.textContent = "Meta não encontrada."; return; }
+  if ((meta.valorAtual || 0) >= meta.valorObjetivo) { errEl.textContent = "Meta já atingida."; return; }
 
   btn.disabled = true;
   btn.textContent = "Salvando...";
 
   try {
     const novoValor = (meta.valorAtual || 0) + valor;
-    await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", metaId), { valorAtual: novoValor });
+    const novosAportes = [...(meta.aportes || []), { valor, data }];
+    const updates = { valorAtual: novoValor, aportes: novosAportes };
+    if (novoValor >= meta.valorObjetivo) updates.status = "concluida";
+    await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", metaId), updates);
     showToast(`Aporte de ${fmtBRL(valor)} registrado.`);
     closeModal("modal-aporte");
     document.getElementById("aporte-form").reset();
@@ -2742,6 +2791,105 @@ async function handleAporteSubmit(e) {
   } finally {
     btn.disabled = false;
     btn.textContent = "Registrar aporte";
+  }
+}
+
+// ============================================================
+// RESGATE MODAL
+// ============================================================
+function initResgateModal() {
+  populateBankSelect("resgate-banco");
+  document.getElementById("resgate-form").addEventListener("submit", handleResgateSubmit);
+}
+
+function openResgateModal(metaId) {
+  const meta = allMetas.find(m => m.id === metaId);
+  if (!meta) return;
+  document.getElementById("resgate-meta-id").value = metaId;
+  document.getElementById("resgate-info").textContent = `Resgatar ${fmtBRL(meta.valorAtual || 0)} da meta "${meta.nome}"`;
+  document.getElementById("resgate-banco").value = meta.banco || "nubank";
+  document.getElementById("resgate-data").value = todayStr();
+  document.getElementById("resgate-error").textContent = "";
+  document.getElementById("modal-resgate").classList.add("active");
+}
+
+async function handleResgateSubmit(e) {
+  e.preventDefault();
+  if (demoGuard()) return;
+  const errEl = document.getElementById("resgate-error");
+  const btn = document.getElementById("resgate-submit");
+  const metaId = document.getElementById("resgate-meta-id").value;
+  const bancoDestino = document.getElementById("resgate-banco").value;
+  const data = document.getElementById("resgate-data").value;
+
+  const meta = allMetas.find(m => m.id === metaId);
+  if (!meta) { errEl.textContent = "Meta não encontrada."; return; }
+  if (!data) { errEl.textContent = "Informe a data."; return; }
+
+  btn.disabled = true;
+  btn.textContent = "Resgatando...";
+
+  try {
+    await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", metaId), {
+      status: "resgatada",
+      resgate: { bancoDestino, data }
+    });
+    showToast(`Resgate de ${fmtBRL(meta.valorAtual)} realizado.`);
+    closeModal("modal-resgate");
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Não foi possível resgatar.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Confirmar resgate";
+  }
+}
+
+// ============================================================
+// TRANSFER MODAL
+// ============================================================
+function initTransferModal() {
+  populateBankSelect("transfer-origem");
+  populateBankSelect("transfer-destino");
+  document.getElementById("transfer-form").addEventListener("submit", handleTransferSubmit);
+  document.getElementById("btn-transfer").addEventListener("click", () => {
+    document.getElementById("transfer-form").reset();
+    document.getElementById("transfer-data").value = todayStr();
+    document.getElementById("transfer-error").textContent = "";
+    document.getElementById("modal-transfer").classList.add("active");
+  });
+}
+
+async function handleTransferSubmit(e) {
+  e.preventDefault();
+  if (demoGuard()) return;
+  const errEl = document.getElementById("transfer-error");
+  const btn = document.getElementById("transfer-submit");
+  const bancoOrigem = document.getElementById("transfer-origem").value;
+  const bancoDestino = document.getElementById("transfer-destino").value;
+  const valor = Number(document.getElementById("transfer-valor").value);
+  const data = document.getElementById("transfer-data").value;
+
+  if (!valor || valor <= 0) { errEl.textContent = "Informe um valor válido."; return; }
+  if (!data) { errEl.textContent = "Informe a data."; return; }
+  if (bancoOrigem === bancoDestino) { errEl.textContent = "Escolha bancos diferentes."; return; }
+
+  btn.disabled = true;
+  btn.textContent = "Transferindo...";
+
+  try {
+    await addDoc(collection(db, "usuarios", currentUser.uid, "transferencias"), {
+      bancoOrigem, bancoDestino, valor, data, criadoEm: serverTimestamp()
+    });
+    showToast(`Transferência de ${fmtBRL(valor)} registrada.`);
+    closeModal("modal-transfer");
+    document.getElementById("transfer-form").reset();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Não foi possível registrar a transferência.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Confirmar transferência";
   }
 }
 

@@ -1198,6 +1198,34 @@ tbody tr:hover { background: var(--surface-2); }
 .btn-sm:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .btn-sm.btn-sage { border-color: var(--sage); color: var(--sage); }
 .btn-sm.btn-sage:hover { background: var(--sage-soft); }
+.btn-sm.btn-gold { border-color: var(--gold); color: var(--gold); }
+.btn-sm.btn-gold:hover { background: var(--gold-soft); }
+
+.meta-card.concluida .meta-deadline { color: var(--sage); font-weight: 600; }
+.meta-card.resgatada { border-top-color: var(--ink-soft); opacity: 0.65; }
+.meta-card.resgatada .meta-progress-fill { background: var(--ink-soft); }
+.meta-card.resgatada .meta-deadline { color: var(--ink-soft); }
+
+.meta-banco-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.resgate-info {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
 
 /* ---- Orçamento ---- */
 .budget-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }

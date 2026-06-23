@@ -122,6 +122,7 @@
       <div class="overview-actions">
         <button class="btn btn-ghost btn-action" id="btn-calc-preco" title="Calcular preço de serviço">🧮 Calcular preço</button>
         <button class="btn btn-ghost btn-action" id="btn-share-month" title="Compartilhar resultado do mês">📤 Compartilhar mês</button>
+        <button class="btn btn-ghost btn-action" id="btn-transfer" title="Transferir entre bancos">🔄 Transferir entre bancos</button>
       </div>
 
       <div class="health-indicator panel" id="health-indicator">
@@ -838,7 +839,7 @@
 
       <div class="field">
         <label for="meta-nome">Nome da meta</label>
-        <input type="text" id="meta-nome" required placeholder="Ex: Cadeira nova de atendimento" />
+        <input type="text" id="meta-nome" required placeholder="Ex: Viagem, Equipamento novo..." />
       </div>
 
       <div class="entry-grid">
@@ -850,6 +851,11 @@
           <label for="meta-data-limite">Data limite</label>
           <input type="date" id="meta-data-limite" required />
         </div>
+      </div>
+
+      <div class="field">
+        <label for="meta-banco">Banco onde o dinheiro será guardado</label>
+        <select id="meta-banco" required></select>
       </div>
 
       <p class="error-msg" id="meta-error"></p>
@@ -868,13 +874,83 @@
     <form id="aporte-form">
       <input type="hidden" id="aporte-meta-id" />
 
-      <div class="field">
-        <label for="aporte-valor">Valor do aporte (R$)</label>
-        <input type="number" id="aporte-valor" step="0.01" min="0.01" required />
+      <div class="entry-grid">
+        <div class="field">
+          <label for="aporte-valor">Valor do aporte (R$)</label>
+          <input type="number" id="aporte-valor" step="0.01" min="0.01" required />
+        </div>
+        <div class="field">
+          <label for="aporte-data">Data</label>
+          <input type="date" id="aporte-data" required />
+        </div>
       </div>
 
       <p class="error-msg" id="aporte-error"></p>
       <button type="submit" class="btn btn-primary btn-block" id="aporte-submit">Registrar aporte</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Resgate de meta concluída -->
+<div class="modal-backdrop" id="modal-resgate">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Resgatar meta</h3>
+      <button class="modal-close" data-close="modal-resgate">&times;</button>
+    </div>
+    <form id="resgate-form">
+      <input type="hidden" id="resgate-meta-id" />
+      <p class="resgate-info" id="resgate-info"></p>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="resgate-banco">Banco de destino</label>
+          <select id="resgate-banco" required></select>
+        </div>
+        <div class="field">
+          <label for="resgate-data">Data do resgate</label>
+          <input type="date" id="resgate-data" required />
+        </div>
+      </div>
+
+      <p class="error-msg" id="resgate-error"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="resgate-submit">Confirmar resgate</button>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL: Transferência entre bancos -->
+<div class="modal-backdrop" id="modal-transfer">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Transferir entre bancos</h3>
+      <button class="modal-close" data-close="modal-transfer">&times;</button>
+    </div>
+    <form id="transfer-form">
+      <div class="entry-grid">
+        <div class="field">
+          <label for="transfer-origem">Banco de origem</label>
+          <select id="transfer-origem" required></select>
+        </div>
+        <div class="field">
+          <label for="transfer-destino">Banco de destino</label>
+          <select id="transfer-destino" required></select>
+        </div>
+      </div>
+
+      <div class="entry-grid">
+        <div class="field">
+          <label for="transfer-valor">Valor (R$)</label>
+          <input type="number" id="transfer-valor" step="0.01" min="0.01" required />
+        </div>
+        <div class="field">
+          <label for="transfer-data">Data</label>
+          <input type="date" id="transfer-data" required />
+        </div>
+      </div>
+
+      <p class="error-msg" id="transfer-error"></p>
+      <button type="submit" class="btn btn-primary btn-block" id="transfer-submit">Confirmar transferência</button>
     </form>
   </div>
 </div>
