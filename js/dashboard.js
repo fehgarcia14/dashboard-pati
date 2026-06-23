@@ -212,6 +212,9 @@ function applyPerfil(perfil) {
   const btnCalcPreco = document.getElementById("btn-calc-preco");
   if (btnCalcPreco) btnCalcPreco.style.display = isGeral ? "none" : "";
 
+  const btnShareMonth = document.getElementById("btn-share-month");
+  if (btnShareMonth) btnShareMonth.style.display = isGeral ? "none" : "";
+
   if (isGeral && currentView === "agenda") {
     const overviewBtn = document.querySelector('[data-view="overview"]');
     if (overviewBtn) overviewBtn.click();
@@ -530,11 +533,18 @@ function listenPago() {
 
     renderDemoBanner();
     if (!wasPerfilPago && usuarioPago) {
+      allEntries = [];
+      allAtendimentos = [];
+      allInvestimentos = [];
+      allMetas = [];
+      allTransferencias = [];
       loadRealData();
       if (!isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
         showWelcomeMessage();
       }
-    } else if (!usuarioPago) {
+    } else if (usuarioPago) {
+      loadRealData();
+    } else {
       loadDemoData();
     }
   }, () => {
