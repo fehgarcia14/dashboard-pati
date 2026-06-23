@@ -109,7 +109,7 @@ let skeletonRemoved = false;
 let usuarioPago = false;
 let perfilNegocio = "salao";
 
-const WEBHOOK_URL = "https://dashboard-pati-webhook.vercel.app";
+const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
 
 const DEMO_ENTRIES_SALAO = [
   { id:'demo1', movimento:'entrada', tipo:'profissional', categoria:'servicos', valor:1500,
