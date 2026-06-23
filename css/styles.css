@@ -570,6 +570,29 @@ button {
   line-height: 1.4;
 }
 
+.upgrade-sidebar-wrap {
+  padding: 0 12px;
+  margin-bottom: 8px;
+}
+.btn-upgrade-sidebar {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+  text-align: left;
+}
+.btn-upgrade-sidebar:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.35);
+}
+
 .sidebar-footer { display: flex; flex-direction: column; gap: 10px; }
 .theme-toggle {
   display: flex;
@@ -1265,6 +1288,32 @@ tbody tr:hover { background: var(--surface-2); }
   color: var(--ink-soft);
   vertical-align: middle;
   margin-left: 6px;
+}
+
+.meta-aportes-history {
+  margin-top: 8px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+}
+.meta-aportes-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.meta-aporte-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 3px 0;
+}
+.meta-aporte-row .mono {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 .resgate-info {

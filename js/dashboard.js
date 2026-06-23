@@ -85,7 +85,8 @@ const DIAS_SEMANA = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Qu
 
 const fmtBRL = (n) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const parseDate = (str) => new Date(str + "T00:00:00");
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const toLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayStr = () => toLocalDateStr(new Date());
 
 // ============================================================
 // STATE
@@ -110,6 +111,7 @@ let usuarioPago = false;
 let pagoSalao = false;
 let pagoGeral = false;
 let welcomeShown = false;
+let firstPagoSnapshot = true;
 let perfilNegocio = "salao";
 
 const WEBHOOK_URL = "https://dashboard-pati-webhook-one.vercel.app";
@@ -533,6 +535,10 @@ function listenPago() {
     usuarioPago = perfilNegocio === "geral" ? pagoGeral : pagoSalao;
 
     renderDemoBanner();
+    renderUpgradeButton();
+    const isInitialLoad = firstPagoSnapshot;
+    firstPagoSnapshot = false;
+
     if (!wasPerfilPago && usuarioPago) {
       allEntries = [];
       allAtendimentos = [];
@@ -540,7 +546,7 @@ function listenPago() {
       allMetas = [];
       allTransferencias = [];
       loadRealData();
-      if (!welcomeShown && !isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
+      if (!isInitialLoad && !welcomeShown && !isLegacy && ((!wasPagoSalao && pagoSalao) || (!wasPagoGeral && pagoGeral))) {
         welcomeShown = true;
         showWelcomeMessage();
       }
@@ -594,6 +600,51 @@ function loadRealData() {
   listenInvestimentos();
   listenMetas();
   listenTransferencias();
+  migrateUTCDates();
+}
+
+async function migrateUTCDates() {
+  const key = `ficha-utc-fix-v2-${currentUser.uid}`;
+  if (localStorage.getItem(key)) return;
+
+  try {
+    const cols = ["lancamentos", "atendimentos", "investimentos"];
+    let fixed = 0;
+
+    for (const colName of cols) {
+      const ref = collection(db, "usuarios", currentUser.uid, colName);
+      const colSnap = await new Promise((resolve, reject) => {
+        const unsub = onSnapshot(query(ref), (s) => { unsub(); resolve(s); }, reject);
+      });
+
+      for (const d of colSnap.docs) {
+        const entry = d.data();
+        if (!entry.data || !entry.criadoEm?.seconds) continue;
+
+        const storedDate = entry.data;
+        const createdAt = new Date(entry.criadoEm.seconds * 1000);
+        const createdDateStr = toLocalDateStr(createdAt);
+
+        const storedD = parseDate(storedDate);
+        const createdD = parseDate(createdDateStr);
+        const diffDays = Math.round((storedD - createdD) / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 1) {
+          try {
+            await updateDoc(doc(db, "usuarios", currentUser.uid, colName, d.id), { data: createdDateStr });
+            fixed++;
+          } catch (e) { console.warn(`Falha ao corrigir ${colName}/${d.id}:`, e); }
+        }
+      }
+    }
+
+    localStorage.setItem(key, "1");
+    if (fixed > 0) {
+      showToast(`${fixed} lançamento(s) com data corrigida.`);
+    }
+  } catch (err) {
+    console.error("Erro na migração de datas:", err);
+  }
 }
 
 function demoGuard() {
@@ -646,6 +697,29 @@ function renderDemoBanner() {
   if (pending) {
     const params = new URLSearchParams(window.location.search);
     pending.style.display = (!usuarioPago && params.has("status")) ? "block" : "none";
+  }
+}
+
+function renderUpgradeButton() {
+  const wrap = document.getElementById("upgrade-sidebar-wrap");
+  const btn = document.getElementById("btn-upgrade-sidebar");
+  if (!wrap || !btn) return;
+
+  const canUpgradeSalao = !pagoSalao && pagoGeral;
+  const canUpgradeGeral = !pagoGeral && pagoSalao;
+
+  if (!canUpgradeSalao && !canUpgradeGeral) {
+    wrap.style.display = "none";
+    return;
+  }
+
+  wrap.style.display = "block";
+  if (canUpgradeSalao) {
+    btn.textContent = "💇 Adquirir versão Salão";
+    btn.onclick = () => handleComprarVersao("salao", null);
+  } else {
+    btn.textContent = "💼 Adquirir versão Geral";
+    btn.onclick = () => handleComprarVersao("geral", null);
   }
 }
 
@@ -837,7 +911,29 @@ function renderOverviewKPIs() {
     const val = Number(inv.valor || 0);
     return acc + (inv.movimento === "aporte" ? val : -val);
   }, 0);
-  animateKPI("kpi-patrimonio", saldoBancos + carteiraInvest);
+
+  let metasImpact = 0;
+  allMetas.forEach(m => {
+    const isResgatada = m.status === "resgatada";
+    (m.aportes || []).forEach(a => {
+      if (parseDate(a.data) > range.end) return;
+      metasImpact -= Number(a.valor || 0);
+    });
+    if (isResgatada && m.resgate && parseDate(m.resgate.data) <= range.end) {
+      metasImpact += Number(m.valorAtual || 0);
+    }
+  });
+  const carteiraMetas = allMetas.reduce((acc, m) => {
+    if (m.status === "resgatada") return acc;
+    let val = 0;
+    (m.aportes || []).forEach(a => {
+      if (parseDate(a.data) > range.end) return;
+      val += Number(a.valor || 0);
+    });
+    return acc + val;
+  }, 0);
+
+  animateKPI("kpi-patrimonio", saldoBancos + carteiraInvest + metasImpact + carteiraMetas);
 }
 
 // ============================================================
@@ -1190,7 +1286,8 @@ function renderBankCards() {
     const bk = m.banco || "outro";
     (m.aportes || []).forEach(a => {
       if (parseDate(a.data) > range.end) return;
-      saldo[bk] = (saldo[bk] || 0) - Number(a.valor || 0);
+      const origem = a.bancoOrigem || bk;
+      saldo[origem] = (saldo[origem] || 0) - Number(a.valor || 0);
     });
     if (m.resgate && parseDate(m.resgate.data) <= range.end) {
       const destBk = m.resgate.bancoDestino || bk;
@@ -1940,6 +2037,17 @@ function renderMetas() {
         <span class="mono">${Math.round(pct)}%</span>
       </div>
       ${!isConcluida && !isResgatada ? `<div class="meta-stats"><span>Falta: <span class="mono">${fmtBRL(restante)}</span></span></div>` : ""}
+      ${(m.aportes || []).length > 0 ? `<div class="meta-aportes-history">
+        <div class="meta-aportes-title">Histórico de aportes</div>
+        ${(m.aportes || []).slice().reverse().map(a => {
+          const bOrigem = bankById(a.bancoOrigem || m.banco || "outro");
+          return `<div class="meta-aporte-row">
+            <span>${fmtDateBR(a.data)}</span>
+            <span class="cat-pill" style="background:${bOrigem.color}22;color:${bOrigem.color}">${bOrigem.label}</span>
+            <span class="mono positive">+ ${fmtBRL(a.valor)}</span>
+          </div>`;
+        }).join("")}
+      </div>` : ""}
       <div class="meta-footer">
         <span class="meta-deadline ${deadlineClass}">${deadlineText}</span>
         <div class="meta-actions">
@@ -2387,7 +2495,7 @@ function getDefaultEntryDate() {
   const filterYear = filterState.year;
   if (filterYear > now.getFullYear() || (filterYear === now.getFullYear() && filterMonth > now.getMonth())) {
     const d = new Date(filterYear, filterMonth, 1);
-    return d.toISOString().slice(0, 10);
+    return toLocalDateStr(d);
   }
   return todayStr();
 }
@@ -2485,7 +2593,7 @@ async function handleEntrySubmit(e) {
 
       for (let i = 0; i < numParcelas; i++) {
         const parcelaDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, baseDate.getDate());
-        const parcelaDateStr = parcelaDate.toISOString().slice(0, 10);
+        const parcelaDateStr = toLocalDateStr(parcelaDate);
         const isLast = i === numParcelas - 1;
         const valorParcela = isLast ? +(valor - valorBase * (numParcelas - 1)).toFixed(2) : valorBase;
         const parcSt = i === 0 ? statusPagamento : "pendente";
@@ -2824,8 +2932,10 @@ async function handleMetaSubmit(e) {
     document.getElementById("meta-form").reset();
     editingMetaId = null;
   } catch (err) {
-    console.error(err);
-    errEl.textContent = "Não foi possível salvar.";
+    console.error("Erro ao salvar meta:", err);
+    errEl.textContent = err.code === "permission-denied"
+      ? "Sem permissão — verifique se as regras do Firestore estão publicadas."
+      : `Erro: ${err.message || "Não foi possível salvar."}`;
   } finally {
     btn.disabled = false;
     btn.textContent = editingMetaId ? "Salvar alterações" : "Salvar meta";
@@ -2836,11 +2946,14 @@ async function handleMetaSubmit(e) {
 // APORTE MODAL (Parte 3.1)
 // ============================================================
 function initAporteModal() {
+  populateBankSelect("aporte-banco-origem");
   document.getElementById("aporte-form").addEventListener("submit", handleAporteSubmit);
 }
 
 function openAporteModal(metaId) {
+  const meta = allMetas.find(m => m.id === metaId);
   document.getElementById("aporte-meta-id").value = metaId;
+  document.getElementById("aporte-banco-origem").value = meta?.banco || "nubank";
   document.getElementById("aporte-valor").value = "";
   document.getElementById("aporte-data").value = todayStr();
   document.getElementById("aporte-error").textContent = "";
@@ -2853,6 +2966,7 @@ async function handleAporteSubmit(e) {
   const errEl = document.getElementById("aporte-error");
   const btn = document.getElementById("aporte-submit");
   const metaId = document.getElementById("aporte-meta-id").value;
+  const bancoOrigem = document.getElementById("aporte-banco-origem").value;
   const valor = Number(document.getElementById("aporte-valor").value);
   const data = document.getElementById("aporte-data").value;
 
@@ -2868,7 +2982,7 @@ async function handleAporteSubmit(e) {
 
   try {
     const novoValor = (meta.valorAtual || 0) + valor;
-    const novosAportes = [...(meta.aportes || []), { valor, data }];
+    const novosAportes = [...(meta.aportes || []), { valor, data, bancoOrigem }];
     const updates = { valorAtual: novoValor, aportes: novosAportes };
     if (novoValor >= meta.valorObjetivo) updates.status = "concluida";
     await updateDoc(doc(db, "usuarios", currentUser.uid, "metas", metaId), updates);
@@ -2995,7 +3109,7 @@ function renderGreeting() {
 
   const frases = [];
   const ontem = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const ontemStr = ontem.toISOString().slice(0, 10);
+  const ontemStr = toLocalDateStr(ontem);
   const hojeStr = todayStr();
 
   const fatOntem = totalOf(allEntries.filter(e => e.data === ontemStr && e.movimento === "entrada"));

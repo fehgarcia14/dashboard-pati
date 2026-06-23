@@ -83,6 +83,10 @@
 
     <div class="last-entry-info" id="last-entry-info"></div>
 
+    <div class="upgrade-sidebar-wrap" id="upgrade-sidebar-wrap" style="display:none;">
+      <button class="btn btn-upgrade-sidebar" id="btn-upgrade-sidebar"></button>
+    </div>
+
     <div class="sidebar-footer">
       <button class="theme-toggle" id="theme-toggle">
         <span id="theme-label">Modo claro</span>
@@ -882,6 +886,11 @@
     </div>
     <form id="aporte-form">
       <input type="hidden" id="aporte-meta-id" />
+
+      <div class="field">
+        <label for="aporte-banco-origem">Banco de origem</label>
+        <select id="aporte-banco-origem" required></select>
+      </div>
 
       <div class="entry-grid">
         <div class="field">
