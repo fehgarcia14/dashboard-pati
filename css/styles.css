@@ -239,13 +239,13 @@ button {
 @media (max-width: 860px) {
   .auth-wrap { grid-template-columns: 1fr; }
   .brand-panel { min-height: 300px; padding: 32px 24px; }
-  .brand-photo-img { object-position: center 20%; }
+  .brand-photo-img { padding: 20px; }
   .brand-panel-overlay {
     background: linear-gradient(
       180deg,
-      rgba(74, 21, 48, 0.50) 0%,
-      rgba(74, 21, 48, 0.45) 40%,
-      rgba(74, 21, 48, 0.80) 100%
+      rgba(10, 10, 10, 0.0) 0%,
+      rgba(10, 10, 10, 0.65) 70%,
+      rgba(10, 10, 10, 0.90) 100%
     );
   }
   .swatch-row { margin-top: 20px; }
@@ -253,12 +253,12 @@ button {
 }
 
 .brand-panel {
-  background: var(--primary-dark);
+  background: #0a0a0a;
   color: #fff;
   padding: 56px 48px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-end;
   position: relative;
   overflow: hidden;
 }
@@ -267,17 +267,15 @@ button {
   position: absolute;
   inset: 0;
   z-index: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: #0a0a0a;
 }
 .brand-photo-img {
-  width: 70%;
-  max-width: 420px;
-  height: auto;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center center;
   display: block;
+  padding: 40px;
 }
 .brand-panel-overlay {
   position: absolute;
@@ -285,10 +283,10 @@ button {
   z-index: 0;
   background: linear-gradient(
     180deg,
-    rgba(74, 21, 48, 0.55) 0%,
-    rgba(74, 21, 48, 0.40) 30%,
-    rgba(74, 21, 48, 0.50) 60%,
-    rgba(74, 21, 48, 0.85) 100%
+    rgba(10, 10, 10, 0.0) 0%,
+    rgba(10, 10, 10, 0.0) 50%,
+    rgba(10, 10, 10, 0.70) 85%,
+    rgba(10, 10, 10, 0.90) 100%
   );
   pointer-events: none;
 }
@@ -2365,15 +2363,15 @@ tbody tr:hover { background: var(--surface-2); }
   background: #1E3A5F;
 }
 [data-perfil="geral"] .brand-panel {
-  background: #152C4A;
+  background: #0a0a0a;
 }
 [data-perfil="geral"] .brand-panel-overlay {
   background: linear-gradient(
     180deg,
-    rgba(21, 44, 74, 0.55) 0%,
-    rgba(21, 44, 74, 0.40) 30%,
-    rgba(21, 44, 74, 0.50) 60%,
-    rgba(21, 44, 74, 0.85) 100%
+    rgba(10, 10, 10, 0.0) 0%,
+    rgba(10, 10, 10, 0.0) 50%,
+    rgba(10, 10, 10, 0.70) 85%,
+    rgba(10, 10, 10, 0.90) 100%
   );
 }
 [data-perfil="geral"] .btn-comprar {
@@ -2390,9 +2388,9 @@ tbody tr:hover { background: var(--surface-2); }
   [data-perfil="geral"] .brand-panel-overlay {
     background: linear-gradient(
       180deg,
-      rgba(21, 44, 74, 0.50) 0%,
-      rgba(21, 44, 74, 0.45) 40%,
-      rgba(21, 44, 74, 0.80) 100%
+      rgba(10, 10, 10, 0.0) 0%,
+      rgba(10, 10, 10, 0.65) 70%,
+      rgba(10, 10, 10, 0.90) 100%
     );
   }
 }
