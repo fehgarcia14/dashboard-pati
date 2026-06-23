@@ -2075,12 +2075,20 @@ tbody tr:hover { background: var(--surface-2); }
 
   .toast { bottom: 80px; font-size: 0.84rem; max-width: calc(100vw - 32px); text-align: center; }
 
-  .demo-banner { padding: 14px 16px 14px 64px; }
-  .comprar-opcoes { flex-direction: column; align-items: stretch; gap: 10px; }
+  .demo-banner { padding: 12px 14px 12px 14px; }
+  .demo-banner-text { font-size: 0.82rem; }
+  .preview-toggle { margin-bottom: 2px; }
+  .preview-label { font-size: 0.65rem; }
+  .preview-btn { font-size: 0.65rem; padding: 3px 10px; }
+  .comprar-opcoes { flex-direction: column; align-items: stretch; gap: 8px; }
   .comprar-opcao-wrap { max-width: unset; min-width: unset; }
-  .btn-comprar-versao { min-width: unset; flex-direction: row; gap: 8px; padding: 10px 16px; width: 100%; }
+  .btn-comprar-versao { min-width: unset; flex-direction: row; gap: 8px; padding: 10px 14px; width: 100%; }
   .comprar-icon { font-size: 1.1rem; }
-  .comprar-desc { font-size: 0.68rem; max-width: unset; }
+  .comprar-label { font-size: 0.82rem; }
+  .comprar-preco { font-size: 0.76rem; }
+  .comprar-desc { font-size: 0.65rem; max-width: unset; line-height: 1.35; }
+  .demo-banner-sub { font-size: 0.7rem; }
+  .demo-banner-links { font-size: 0.7rem; flex-wrap: wrap; justify-content: center; }
 
   .inv-bank-header { font-size: 0.82rem; padding: 10px 14px; }
   .inv-product-row { font-size: 0.82rem; padding: 8px 14px; }
@@ -2128,6 +2136,21 @@ tbody tr:hover { background: var(--surface-2); }
   .brand-hero p { font-size: 0.88rem; margin-top: 12px; }
   .brand-footnote { font-size: 0.72rem; }
   .brand-hero .eyebrow { font-size: 0.68rem; margin-bottom: 12px; }
+
+  .landing-preview { margin-bottom: 12px; }
+  .landing-preview .preview-btn { font-size: 0.65rem; padding: 4px 10px; }
+
+  .perfil-selector { grid-template-columns: 1fr; gap: 8px; }
+  .perfil-card { flex-direction: row; padding: 12px 14px; gap: 10px; }
+  .perfil-icon { font-size: 1.2rem; }
+
+  .welcome-card { padding: 28px 22px; }
+  .welcome-icon { font-size: 2.4rem; }
+  .welcome-card h2 { font-size: 1.25rem; }
+  .welcome-card p { font-size: 0.85rem; }
+
+  .meta-banco-tag { font-size: 0.6rem; padding: 1px 6px; }
+  .resgate-info { font-size: 0.82rem; padding: 10px; }
 }
 
 /* -- Scroll-snapping for field focus on mobile keyboards -- */
