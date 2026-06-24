@@ -245,28 +245,39 @@ button {
     max-width: 100vw;
   }
   .brand-panel {
-    width: 100vw;
-    max-width: 100vw;
-    min-height: 60vh;
+    width: 100%;
+    min-height: 0;
     border-radius: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #000;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
   }
   .brand-panel::before { display: none; }
   .brand-photo {
+    position: relative;
+    inset: auto;
     border-radius: 0 !important;
     background: #000;
-    inset: 0;
   }
   .brand-photo-img {
-    object-fit: cover;
+    width: 100%;
+    height: auto;
+    display: block;
     padding: 0;
-    background: #000;
+    margin: 0;
+    object-fit: contain;
   }
   .auth-panel { padding: 28px 20px; }
-  .landing-preview { bottom: 6px; padding: 6px 12px; }
+  .landing-preview {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    padding: 6px 12px;
+  }
   .landing-preview .preview-btn { font-size: 0.82rem; padding: 9px 18px; }
 }
 
