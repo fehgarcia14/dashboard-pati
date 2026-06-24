@@ -238,8 +238,12 @@ button {
 
 @media (max-width: 860px) {
   .auth-wrap { grid-template-columns: 1fr; }
-  .brand-panel { min-height: 55vh; }
-  .landing-preview { bottom: 14px; padding: 6px 12px; }
+  .brand-panel { min-height: 50vh; }
+  .brand-photo-img {
+    object-fit: contain;
+    padding: 16px;
+  }
+  .landing-preview { bottom: 10px; padding: 6px 12px; }
   .landing-preview .preview-btn { font-size: 0.82rem; padding: 9px 18px; }
 }
 
