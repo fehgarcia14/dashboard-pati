@@ -1676,10 +1676,35 @@ function renderInvestments() {
           <div class="inv-product-row">
             <span class="prod-name">${escapeHtml(p.produto)}</span>
             <span class="prod-value">${fmtBRL(p.saldo)}</span>
+            <button class="icon-btn" data-update-saldo="${p.banco}|||${p.produto}" title="Atualizar saldo (rendimento)">✎</button>
           </div>
         `).join("")}
       </div>`;
     }).join("");
+
+    container.querySelectorAll("[data-update-saldo]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (demoGuard()) return;
+        const [banco, produto] = btn.dataset.updateSaldo.split("|||");
+        const current = products.find(p => p.banco === banco && p.produto === produto);
+        if (!current) return;
+        const novoSaldo = prompt(`Saldo atual de "${produto}":\n${fmtBRL(current.saldo)}\n\nDigite o saldo real de hoje (com rendimentos):`);
+        if (novoSaldo === null) return;
+        const novoVal = Number(novoSaldo.replace(",", "."));
+        if (isNaN(novoVal) || novoVal < 0) { alert("Valor inválido."); return; }
+        const diff = novoVal - current.saldo;
+        if (Math.abs(diff) < 0.01) return;
+        const mov = diff > 0 ? "rendimento" : "correcao";
+        addDoc(collection(db, "usuarios", currentUser.uid, "investimentos"), {
+          bancoOrigem: banco, bancoInvestimento: banco, banco, produto,
+          movimento: diff > 0 ? "aporte" : "retirada",
+          valor: Math.abs(Math.round(diff * 100) / 100),
+          data: todayStr(),
+          observacao: diff > 0 ? "Rendimento" : "Correção de saldo",
+          criadoEm: serverTimestamp()
+        }).then(() => showToast(`Saldo de "${produto}" atualizado.`));
+      });
+    });
   }
 
   const sorted = allInvestimentos.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
@@ -1690,6 +1715,9 @@ function renderInvestments() {
     const bInvest = bankById(e.bancoInvestimento || e.banco || "outro");
     const d = parseDate(e.data);
     const isAporte = e.movimento === "aporte";
+    const isRendimento = isAporte && (e.observacao === "Rendimento" || e.observacao === "Correção de saldo");
+    const movLabel = isRendimento ? "Rendimento" : (isAporte ? "Aporte" : "Retirada");
+    const movClass = isAporte ? "entrada" : "saida";
     const sameBanco = bOrigem.id === bInvest.id;
     const bancoCell = sameBanco
       ? `<span class="cat-pill" style="background:${bInvest.color}22;color:${bInvest.color}">${bInvest.label}</span>`
@@ -1698,7 +1726,7 @@ function renderInvestments() {
       <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
       <td>${bancoCell}</td>
       <td>${escapeHtml(e.produto)}</td>
-      <td><span class="mov-pill ${isAporte ? "entrada" : "saida"}">${isAporte ? "Aporte" : "Retirada"}</span></td>
+      <td><span class="mov-pill ${movClass}">${movLabel}</span></td>
       <td class="amt-cell ${isAporte ? "positive" : "negative"}">${isAporte ? "+" : "−"} ${fmtBRL(e.valor)}</td>
       <td>${e.observacao ? escapeHtml(e.observacao) : "—"}</td>
       <td>
