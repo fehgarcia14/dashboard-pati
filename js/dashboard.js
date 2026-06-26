@@ -1335,7 +1335,7 @@ function renderBankCards() {
     saldo[t.bancoDestino || "outro"] = (saldo[t.bancoDestino || "outro"] || 0) + val;
   });
 
-  const entries = Object.entries(saldo).filter(([, v]) => Math.abs(v) >= 0.01).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(saldo).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => b[1] - a[1]);
   if (entries.length === 0) {
     container.innerHTML = '<div class="chart-empty"><span class="empty-icon">🏦</span><span>Sem movimentação</span></div>';
     return;
