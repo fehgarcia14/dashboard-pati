@@ -931,13 +931,14 @@ function renderOverviewKPIs() {
     return acc + delta;
   }, 0) + allInvestimentos.reduce((acc, inv) => {
     if (parseDate(inv.data) > range.end) return acc;
+    if (inv.movimento === "rendimento") return acc;
     const val = Number(inv.valor || 0);
     return acc + (inv.movimento === "aporte" ? -val : val);
   }, 0);
   const carteiraInvest = allInvestimentos.reduce((acc, inv) => {
     if (parseDate(inv.data) > range.end) return acc;
     const val = Number(inv.valor || 0);
-    return acc + (inv.movimento === "aporte" ? val : -val);
+    return acc + (inv.movimento === "retirada" ? -val : val);
   }, 0);
 
   let metasImpact = 0;
@@ -1209,7 +1210,7 @@ function renderPatrimonioChart() {
       const id = parseDate(inv.data);
       if (id > cutoff) return acc;
       const val = Number(inv.valor || 0);
-      return acc + (inv.movimento === "aporte" ? val : -val);
+      return acc + (inv.movimento === "retirada" ? -val : val);
     }, 0);
     return bankBalance + investBalance;
   });
@@ -1306,6 +1307,7 @@ function renderBankCards() {
 
   allInvestimentos.forEach(inv => {
     if (parseDate(inv.data) > range.end) return;
+    if (inv.movimento === "rendimento") return;
     const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     saldo[bk] = (saldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
@@ -1616,7 +1618,7 @@ function promptBancoPagamento(defaultBanco) {
 // INVESTMENTS
 // ============================================================
 function getTotalInvestido() {
-  return totalOf(allInvestimentos.filter(e => e.movimento === "aporte")) -
+  return totalOf(allInvestimentos.filter(e => e.movimento === "aporte" || e.movimento === "rendimento")) -
          totalOf(allInvestimentos.filter(e => e.movimento === "retirada"));
 }
 
@@ -1633,7 +1635,7 @@ function renderInvestments() {
     const bInv = e.bancoInvestimento || e.banco || "outro";
     const key = `${bInv}|||${e.produto}`;
     if (!prodMap[key]) prodMap[key] = { banco: bInv, produto: e.produto, saldo: 0 };
-    prodMap[key].saldo += e.movimento === "aporte" ? Number(e.valor) : -Number(e.valor);
+    prodMap[key].saldo += e.movimento === "retirada" ? -Number(e.valor) : Number(e.valor);
   });
 
   const products = Object.values(prodMap).sort((a, b) => b.saldo - a.saldo);
@@ -1694,10 +1696,9 @@ function renderInvestments() {
         if (isNaN(novoVal) || novoVal < 0) { alert("Valor inválido."); return; }
         const diff = novoVal - current.saldo;
         if (Math.abs(diff) < 0.01) return;
-        const mov = diff > 0 ? "rendimento" : "correcao";
         addDoc(collection(db, "usuarios", currentUser.uid, "investimentos"), {
           bancoOrigem: banco, bancoInvestimento: banco, banco, produto,
-          movimento: diff > 0 ? "aporte" : "retirada",
+          movimento: "rendimento",
           valor: Math.abs(Math.round(diff * 100) / 100),
           data: todayStr(),
           observacao: diff > 0 ? "Rendimento" : "Correção de saldo",
@@ -1714,9 +1715,9 @@ function renderInvestments() {
     const bOrigem = bankById(e.bancoOrigem || e.banco || "outro");
     const bInvest = bankById(e.bancoInvestimento || e.banco || "outro");
     const d = parseDate(e.data);
-    const isAporte = e.movimento === "aporte";
-    const isRendimento = isAporte && (e.observacao === "Rendimento" || e.observacao === "Correção de saldo");
-    const movLabel = isRendimento ? "Rendimento" : (isAporte ? "Aporte" : "Retirada");
+    const isRendimento = e.movimento === "rendimento";
+    const isAporte = e.movimento === "aporte" || isRendimento;
+    const movLabel = isRendimento ? "Rendimento" : (e.movimento === "aporte" ? "Aporte" : "Retirada");
     const movClass = isAporte ? "entrada" : "saida";
     const sameBanco = bOrigem.id === bInvest.id;
     const bancoCell = sameBanco
