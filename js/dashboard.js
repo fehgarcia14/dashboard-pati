@@ -932,6 +932,7 @@ function renderOverviewKPIs() {
   }, 0) + allInvestimentos.reduce((acc, inv) => {
     if (parseDate(inv.data) > range.end) return acc;
     if (inv.movimento === "rendimento") return acc;
+    if (inv.observacao === "Rendimento" || inv.observacao === "Correção de saldo") return acc;
     const val = Number(inv.valor || 0);
     return acc + (inv.movimento === "aporte" ? -val : val);
   }, 0);
@@ -1308,6 +1309,7 @@ function renderBankCards() {
   allInvestimentos.forEach(inv => {
     if (parseDate(inv.data) > range.end) return;
     if (inv.movimento === "rendimento") return;
+    if (inv.observacao === "Rendimento" || inv.observacao === "Correção de saldo") return;
     const bk = inv.bancoOrigem || inv.banco || "outro";
     const val = Number(inv.valor || 0);
     saldo[bk] = (saldo[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
