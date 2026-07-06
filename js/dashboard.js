@@ -1301,7 +1301,12 @@ function renderBankCards() {
   BANKS.forEach(b => { saldo[b.id] = 0; });
 
   allEntries.forEach(e => {
-    if (parseDate(e.data) > range.end) return;
+    // For paid CC entries, use dataPagamento (when actually paid) so the deduction
+    // lands in the month the money actually left the account, not the purchase month.
+    const effectiveDate = (e.formaPagamento === "credito" && e.statusPagamento === "pago" && e.dataPagamento)
+      ? parseDate(e.dataPagamento)
+      : parseDate(e.data);
+    if (effectiveDate > range.end) return;
     const { banco: bk, delta } = entrySaldoImpact(e);
     if (bk) saldo[bk] = (saldo[bk] || 0) + delta;
   });
@@ -1540,11 +1545,11 @@ function renderCreditCard() {
           const bancoPagamento = await promptBancoPagamento(entryBanco);
           if (!bancoPagamento) { sel.value = oldSt; return; }
           sel.className = "status-select pago";
-          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: "pago", bancoPagamento });
+          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: "pago", bancoPagamento, dataPagamento: todayStr() });
           showToast("Fatura paga.");
         } else if (newSt !== "pago" && oldSt === "pago") {
           sel.className = "status-select " + newSt;
-          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: newSt, bancoPagamento: null });
+          await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId), { statusPagamento: newSt, bancoPagamento: null, dataPagamento: null });
           showToast("Status revertido — valor devolvido ao banco.");
         } else {
           sel.className = "status-select " + newSt;
