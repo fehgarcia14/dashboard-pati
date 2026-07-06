@@ -926,7 +926,9 @@ function renderOverviewKPIs() {
 
   const range = getRange(filterState.type, filterState.value, filterState.year);
   const saldoBancos = allEntries.reduce((acc, e) => {
-    if (parseDate(e.data) > range.end) return acc;
+    const effectiveDate = (e.formaPagamento === "credito" && e.statusPagamento === "pago" && e.dataPagamento)
+      ? parseDate(e.dataPagamento) : parseDate(e.data);
+    if (effectiveDate > range.end) return acc;
     const { delta } = entrySaldoImpact(e);
     return acc + delta;
   }, 0) + allInvestimentos.reduce((acc, inv) => {
@@ -1203,8 +1205,9 @@ function renderPatrimonioChart() {
   const patrimonioData = months.map(d => {
     const cutoff = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
     const bankBalance = allEntries.reduce((acc, e) => {
-      const ed = parseDate(e.data);
-      if (ed > cutoff) return acc;
+      const effectiveDate = (e.formaPagamento === "credito" && e.statusPagamento === "pago" && e.dataPagamento)
+        ? parseDate(e.dataPagamento) : parseDate(e.data);
+      if (effectiveDate > cutoff) return acc;
       return acc + entrySaldoImpact(e).delta;
     }, 0);
     const investBalance = allInvestimentos.reduce((acc, inv) => {
@@ -2697,10 +2700,13 @@ async function handleEntrySubmit(e) {
           const bp = await promptBancoPagamento(banco);
           if (!bp) { btn.disabled = false; btn.textContent = "Salvar alterações"; return; }
           payload.bancoPagamento = bp;
+          payload.dataPagamento = todayStr();
         } else if (statusPagamento !== "pago") {
           payload.bancoPagamento = null;
+          payload.dataPagamento = null;
         } else {
           payload.bancoPagamento = existing?.bancoPagamento || null;
+          payload.dataPagamento = existing?.dataPagamento || null;
         }
       }
       await updateDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", editingEntryId), payload);
