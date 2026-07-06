@@ -2115,7 +2115,7 @@ function renderMetas() {
   const now = new Date();
   const ativas = allMetas.filter(m => (m.valorAtual || 0) < m.valorObjetivo);
   const concluidas = allMetas.filter(m => (m.valorAtual || 0) >= m.valorObjetivo);
-  const totalInvestido = allMetas.reduce((s, m) => s + (m.valorAtual || 0), 0);
+  const totalInvestido = allMetas.filter(m => m.status !== "resgatada").reduce((s, m) => s + (m.valorAtual || 0), 0);
 
   animateCount("kpi-metas-ativas", ativas.length);
   animateCount("kpi-metas-concluidas", concluidas.length);
