@@ -1040,6 +1040,11 @@ tbody tr:hover { background: var(--surface-2); }
 .status-select.pendente { border-color: var(--warning); color: var(--warning); background: var(--warning-soft); }
 .status-select.atrasado { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
 
+/* Previous-month pending credit card rows */
+.cc-row-prev { background: #fffbeb; }
+@media (prefers-color-scheme: dark) { .cc-row-prev { background: #2d1a00; } }
+[data-theme="dark"] .cc-row-prev { background: #2d1a00; }
+
 .status-badge {
   font-size: 0.72rem;
   padding: 3px 10px;

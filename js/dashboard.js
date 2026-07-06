@@ -1467,7 +1467,17 @@ async function handleDeleteEntry(entryId) {
 // CREDIT CARD
 // ============================================================
 function renderCreditCard() {
+  const range = getRange(filterState.type, filterState.value, filterState.year);
   const cur = filteredEntries().filter(e => e.formaPagamento === "credito");
+
+  // Pending/overdue credit card entries from previous months (so user can pay old bills)
+  const previousPending = allEntries.filter(e =>
+    e.formaPagamento === "credito" &&
+    e.movimento === "saida" &&
+    (e.statusPagamento === "pendente" || e.statusPagamento === "atrasado") &&
+    parseDate(e.data) < range.start
+  );
+
   const pago = totalOf(cur.filter(e => e.statusPagamento === "pago"));
   const pendente = totalOf(cur.filter(e => e.statusPagamento === "pendente"));
   const atrasado = totalOf(cur.filter(e => e.statusPagamento === "atrasado"));
@@ -1478,30 +1488,35 @@ function renderCreditCard() {
   animateKPI("kpi-cc-atrasado", atrasado);
   animateKPI("kpi-cc-total", total);
 
-  document.getElementById("cc-count").textContent = `${cur.length} compra${cur.length === 1 ? "" : "s"} no período`;
+  const allVisible = [...cur, ...previousPending];
+  const countTxt = `${cur.length} compra${cur.length === 1 ? "" : "s"} no período` +
+    (previousPending.length > 0 ? ` · ${previousPending.length} pendente${previousPending.length > 1 ? "s" : ""} de meses anteriores` : "");
+  document.getElementById("cc-count").textContent = countTxt;
 
   const tbody = document.getElementById("cc-tbody");
-  if (cur.length === 0) {
+  if (allVisible.length === 0) {
     tbody.innerHTML = "";
     document.getElementById("cc-empty").style.display = "block";
   } else {
     document.getElementById("cc-empty").style.display = "none";
 
-    const sorted = cur.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
+    const sorted = allVisible.slice().sort((a, b) => parseDate(b.data) - parseDate(a.data));
     tbody.innerHTML = sorted.map(e => {
       const cat = catById(e.categoria);
       const d = parseDate(e.data);
       const bank = bankById(e.banco);
       const st = e.statusPagamento || "pago";
+      const isPrev = parseDate(e.data) < range.start;
       const parcelaBadge = e.parcelaTotal > 1 ? `<span class="parcela-badge">${e.parcelaAtual}/${e.parcelaTotal}</span>` : "";
       const descText = e.descricao ? escapeHtml(e.descricao) : "—";
       const pgtoBank = (st === "pago" && e.bancoPagamento) ? bankById(e.bancoPagamento) : null;
       const pgtoTag = pgtoBank ? `<span class="cat-pill" style="background:${pgtoBank.color}22;color:${pgtoBank.color};font-size:0.68rem;margin-left:4px" title="Pago com ${pgtoBank.label}">${pgtoBank.label}</span>` : "";
-      return `<tr>
+      const prevTag = isPrev ? `<span class="cat-pill" style="background:#f59e0b22;color:#d97706;font-size:0.68rem;margin-left:4px" title="Fatura de mês anterior — pendente">mês ant.</span>` : "";
+      return `<tr${isPrev ? ' class="cc-row-prev"' : ''}>
         <td>${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}</td>
         <td><span class="cat-pill" style="background:${cat?.color}22;color:${cat?.color}">${cat?.label || e.categoria}</span></td>
         <td><span class="cat-pill" style="background:${bank.color}22;color:${bank.color}">${bank.label}</span></td>
-        <td>${descText}${parcelaBadge}</td>
+        <td>${descText}${parcelaBadge}${prevTag}</td>
         <td class="amt-cell negative">−${fmtBRL(e.valor)}</td>
         <td>
           <select class="status-select ${st}" data-cc-status="${e.id}" data-cc-old-status="${st}" data-cc-banco="${e.banco}">
