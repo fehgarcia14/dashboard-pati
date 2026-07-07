@@ -68,6 +68,7 @@ const BANKS = [
   { id: "caixa",     label: "Caixa",            color: "#005CA9" },
   { id: "c6",        label: "C6 Bank",          color: "#2D2D2D" },
   { id: "bradesco",  label: "Bradesco",         color: "#CC092F" },
+  { id: "santander", label: "Santander",        color: "#EC0000" },
   { id: "bb",        label: "Banco do Brasil",  color: "#FCBA03" },
   { id: "dinheiro",  label: "Dinheiro",         color: "#4F6B5E" },
   { id: "outro",     label: "Outro",            color: "#888888" }
