@@ -2656,7 +2656,8 @@ function openEntryModal(entry) {
   document.getElementById("modal-entry").classList.add("active");
 
   populateEntryCategories();
-  document.getElementById("entry-categoria").value = entry?.categoria || "";
+  const categoriaSel = document.getElementById("entry-categoria");
+  categoriaSel.value = entry?.categoria || categoriaSel.options[0]?.value || "";
 }
 
 async function handleEntrySubmit(e) {
