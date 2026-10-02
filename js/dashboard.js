@@ -104,6 +104,7 @@ let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMe
 let appInitialized = false;
 let readyEntries = false, readyMetas = false, readyTransf = false, readyInvest = false;
 let saldoFixChecked = false;
+let saldoFix2Checked = false;
 let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
 let prevKPI = {};
 let entriesMovFilter = "todos";
@@ -589,6 +590,7 @@ function computeBankBaseline() {
 function maybeRunSaldoFix() {
   if (readyEntries && readyMetas && readyTransf && readyInvest) {
     runOneTimeSaldoFix().catch(err => console.error("saldo fix failed", err));
+    runOneTimeSaldoFixPart2().catch(err => console.error("saldo fix part2 failed", err));
   }
 }
 
@@ -640,6 +642,36 @@ async function runOneTimeSaldoFix() {
   }
 
   showToast("Investimentos zerados e saldo por banco ajustado.");
+}
+
+// Part 2: a small pre-existing "Outro" balance (from old lançamentos) was left
+// over after part 1's correction. Folds it into Santander so only Nubank and
+// Santander remain visible, as requested.
+async function runOneTimeSaldoFixPart2() {
+  if (saldoFix2Checked) return;
+  if (!currentUser) return;
+
+  const userRef = doc(db, "usuarios", currentUser.uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists() && userSnap.data().saldoFix20261002b) { saldoFix2Checked = true; return; }
+
+  const baseline = computeBankBaseline();
+  const outroAtual = baseline.outro || 0;
+  const matches = outroAtual < -0.3 && outroAtual > -10 &&
+    Math.abs((baseline.nubank || 0) - 800) < 3 &&
+    Math.abs((baseline.bb || 0)) < 3;
+  if (!matches) return;
+
+  saldoFix2Checked = true;
+  await updateDoc(userRef, { saldoFix20261002b: true });
+
+  const ajuste = Math.round(Math.abs(outroAtual) * 100) / 100;
+  if (ajuste >= 0.01) {
+    await addDoc(collection(db, "usuarios", currentUser.uid, "transferencias"), {
+      bancoOrigem: "santander", bancoDestino: "outro", valor: ajuste, data: todayStr(), criadoEm: serverTimestamp()
+    });
+  }
+  showToast("Saldo ajustado — só Nubank e Santander aparecem agora.");
 }
 
 // ============================================================
