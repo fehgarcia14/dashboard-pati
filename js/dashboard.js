@@ -1393,8 +1393,10 @@ function renderTransferencias() {
     btn.addEventListener("click", async () => {
       if (demoGuard()) return;
       if (!confirm("Excluir esta transferência?")) return;
+      const transf = allTransferencias.find(x => x.id === btn.dataset.delTransf);
+      const data = transf ? { ...transf } : null;
       await deleteDoc(doc(db, "usuarios", currentUser.uid, "transferencias", btn.dataset.delTransf));
-      showToast("Transferência excluída.");
+      showUndoToast("Transferência excluída.", () => data && restoreDoc("transferencias", data));
     });
   });
 }
@@ -1462,13 +1464,17 @@ async function handleDeleteEntry(entryId) {
       `Clique OK para excluir TODAS as ${siblings.length} parcelas, ou Cancelar para não excluir nada.`
     );
     if (!choice) return;
+    const dataList = siblings.map(s => ({ ...s }));
     const promises = siblings.map(s => deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", s.id)));
     await Promise.all(promises);
-    showToast(`${siblings.length} parcelas excluídas.`);
+    showUndoToast(`${siblings.length} parcelas excluídas.`, () =>
+      Promise.all(dataList.map(d => restoreDoc("lancamentos", d)))
+    );
   } else {
     if (!confirm("Excluir este lançamento?")) return;
+    const data = { ...entry };
     await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", entryId));
-    showToast("Lançamento excluído.");
+    showUndoToast("Lançamento excluído.", () => restoreDoc("lancamentos", data));
   }
 }
 
@@ -1772,8 +1778,10 @@ function renderInvestments() {
     btn.addEventListener("click", async () => {
       if (demoGuard()) return;
       if (!confirm("Excluir este movimento?")) return;
+      const inv = allInvestimentos.find(e => e.id === btn.dataset.delInv);
+      const data = inv ? { ...inv } : null;
       await deleteDoc(doc(db, "usuarios", currentUser.uid, "investimentos", btn.dataset.delInv));
-      showToast("Movimento excluído.");
+      showUndoToast("Movimento excluído.", () => data && restoreDoc("investimentos", data));
     });
   });
 }
@@ -1867,11 +1875,21 @@ function renderAgenda() {
         if (demoGuard()) return;
         if (!confirm("Excluir este atendimento? O lançamento financeiro vinculado também será excluído.")) return;
         const atend = allAtendimentos.find(a => a.id === btn.dataset.delAtend);
+        const atendData = atend ? { ...atend } : null;
+        const linkedLanc = atend?.lancamentoId ? allEntries.find(e => e.id === atend.lancamentoId) : null;
+        const lancData = linkedLanc ? { ...linkedLanc } : null;
         if (atend?.lancamentoId) {
           await deleteDoc(doc(db, "usuarios", currentUser.uid, "lancamentos", atend.lancamentoId)).catch(() => {});
         }
         await deleteDoc(doc(db, "usuarios", currentUser.uid, "atendimentos", btn.dataset.delAtend));
-        showToast("Atendimento excluído.");
+        showUndoToast("Atendimento excluído.", async () => {
+          let newLancId = null;
+          if (lancData) newLancId = await restoreDoc("lancamentos", lancData);
+          if (atendData) {
+            if (newLancId) atendData.lancamentoId = newLancId;
+            await restoreDoc("atendimentos", atendData);
+          }
+        });
       });
     });
     container.querySelectorAll("[data-realize-atend]").forEach(btn => {
@@ -2197,8 +2215,10 @@ function renderMetas() {
     btn.addEventListener("click", async () => {
       if (demoGuard()) return;
       if (!confirm("Excluir esta meta?")) return;
+      const meta = allMetas.find(m => m.id === btn.dataset.delMeta);
+      const data = meta ? { ...meta } : null;
       await deleteDoc(doc(db, "usuarios", currentUser.uid, "metas", btn.dataset.delMeta));
-      showToast("Meta excluída.");
+      showUndoToast("Meta excluída.", () => data && restoreDoc("metas", data));
     });
   });
 }
@@ -3661,4 +3681,36 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = "toast"; }, 2600);
   fireConfetti();
+}
+
+// Shows a toast with a "Desfazer" button for 8s. Clicking it runs undoFn,
+// which should re-create whatever was just deleted.
+function showUndoToast(msg, undoFn) {
+  const t = document.getElementById("toast");
+  clearTimeout(toastTimer);
+  t.innerHTML = `<span>${escapeHtml(msg)}</span> <button type="button" class="toast-undo-btn" id="toast-undo-btn">Desfazer</button>`;
+  t.className = "toast show has-undo";
+  const btn = document.getElementById("toast-undo-btn");
+  btn.onclick = async () => {
+    clearTimeout(toastTimer);
+    t.className = "toast";
+    btn.onclick = null;
+    try {
+      await undoFn();
+      showToast("Ação desfeita.");
+    } catch (err) {
+      console.error(err);
+      alert("Não foi possível desfazer. Tente recriar manualmente.");
+    }
+  };
+  toastTimer = setTimeout(() => { t.className = "toast"; btn.onclick = null; }, 8000);
+}
+
+// Re-creates a deleted document (new id, same data) to support undo.
+// Returns the new document's id.
+async function restoreDoc(collectionName, data) {
+  const clean = { ...data };
+  delete clean.id;
+  const ref = await addDoc(collection(db, "usuarios", currentUser.uid, collectionName), clean);
+  return ref.id;
 }

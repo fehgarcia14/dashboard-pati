@@ -1778,6 +1778,20 @@ tbody tr:hover { background: var(--surface-2); }
   -webkit-backdrop-filter: blur(8px);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.show.has-undo { pointer-events: auto; display: flex; align-items: center; gap: 12px; }
+.toast-undo-btn {
+  background: transparent;
+  border: 1px solid var(--bg);
+  color: var(--bg);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .2s ease;
+}
+.toast-undo-btn:hover { background: rgba(255, 255, 255, 0.15); }
 
 /* ---- Ranking table highlight ---- */
 #ranking-tbody tr:first-child td { font-weight: 600; }
