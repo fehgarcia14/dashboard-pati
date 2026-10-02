@@ -102,6 +102,8 @@ let allTransferencias = [];
 let unsubEntries = null, unsubAtend = null, unsubInvest = null, unsubMetas = null, unsubTransf = null, unsubPago = null;
 let editingEntryId = null, editingAtendId = null, editingInvId = null, editingMetaId = null;
 let appInitialized = false;
+let readyEntries = false, readyMetas = false, readyTransf = false, readyInvest = false;
+let saldoFixChecked = false;
 let charts = { trend: null, categories: null, split: null, payment: null, patrimonio: null };
 let prevKPI = {};
 let entriesMovFilter = "todos";
@@ -491,6 +493,8 @@ function listenEntries() {
     populateYearSelect();
     removeSkeleton();
     renderAll();
+    readyEntries = true;
+    maybeRunSaldoFix();
   }, () => showToast("Erro ao carregar lançamentos."));
 }
 
@@ -514,6 +518,8 @@ function listenInvestimentos() {
     updateProdutoDatalist();
     removeSkeleton();
     renderAll();
+    readyInvest = true;
+    maybeRunSaldoFix();
   }, () => showToast("Erro ao carregar investimentos."));
 }
 
@@ -523,6 +529,8 @@ function listenMetas() {
   unsubMetas = onSnapshot(query(ref), (snap) => {
     allMetas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAll();
+    readyMetas = true;
+    maybeRunSaldoFix();
   }, () => showToast("Erro ao carregar metas."));
 }
 
@@ -532,7 +540,87 @@ function listenTransferencias() {
   unsubTransf = onSnapshot(query(ref), (snap) => {
     allTransferencias = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAll();
+    readyTransf = true;
+    maybeRunSaldoFix();
   }, () => showToast("Erro ao carregar transferências."));
+}
+
+// ============================================================
+// ONE-TIME SALDO FIX (2026-10-02) — pedido do usuário felipefefe14.123@gmail.com
+// Ele apagou aportes/retiradas antigos de investimento por engano, o que
+// distorceu o "Saldo por Banco" calculado. Zera os investimentos e injeta
+// transferências de compensação pra bater com o saldo real informado por ele
+// (Nubank R$800, Santander R$180,46, demais R$0). Roda uma única vez, travado
+// por e-mail + flag no Firestore — não afeta nenhum outro usuário do app.
+// ============================================================
+function computeBankBaseline() {
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  const saldo = {};
+  BANKS.forEach(b => { saldo[b.id] = 0; });
+  allEntries.forEach(e => {
+    const effectiveDate = (e.formaPagamento === "credito" && e.statusPagamento === "pago" && e.dataPagamento)
+      ? parseDate(e.dataPagamento)
+      : parseDate(e.data);
+    if (effectiveDate > range.end) return;
+    const { banco: bk, delta } = entrySaldoImpact(e);
+    if (bk) saldo[bk] = (saldo[bk] || 0) + delta;
+  });
+  allMetas.forEach(m => {
+    const bk = m.banco || "outro";
+    (m.aportes || []).forEach(a => {
+      if (parseDate(a.data) > range.end) return;
+      const origem = a.bancoOrigem || bk;
+      saldo[origem] = (saldo[origem] || 0) - Number(a.valor || 0);
+    });
+    if (m.resgate && parseDate(m.resgate.data) <= range.end) {
+      const destBk = m.resgate.bancoDestino || bk;
+      saldo[destBk] = (saldo[destBk] || 0) + Number(m.valorAtual || 0);
+    }
+  });
+  allTransferencias.forEach(t => {
+    if (parseDate(t.data) > range.end) return;
+    const val = Number(t.valor || 0);
+    saldo[t.bancoOrigem || "outro"] = (saldo[t.bancoOrigem || "outro"] || 0) - val;
+    saldo[t.bancoDestino || "outro"] = (saldo[t.bancoDestino || "outro"] || 0) + val;
+  });
+  return saldo;
+}
+
+function maybeRunSaldoFix() {
+  if (readyEntries && readyMetas && readyTransf && readyInvest) {
+    runOneTimeSaldoFix().catch(err => console.error("saldo fix failed", err));
+  }
+}
+
+async function runOneTimeSaldoFix() {
+  if (saldoFixChecked) return;
+  if (!currentUser || currentUser.email !== "felipefefe14.123@gmail.com") return;
+  saldoFixChecked = true;
+
+  const flagRef = doc(db, "usuarios", currentUser.uid, "_migrations", "fix-saldo-2026-10-02");
+  const flagSnap = await getDoc(flagRef);
+  if (flagSnap.exists()) return;
+  await setDoc(flagRef, { aplicadoEm: serverTimestamp() });
+
+  await Promise.all(allInvestimentos.map(inv =>
+    deleteDoc(doc(db, "usuarios", currentUser.uid, "investimentos", inv.id))
+  ));
+
+  const baseline = computeBankBaseline();
+  const targets = { nubank: 800, santander: 180.46, bb: 0 };
+  const hoje = todayStr();
+  const transfRef = collection(db, "usuarios", currentUser.uid, "transferencias");
+
+  for (const [bancoId, target] of Object.entries(targets)) {
+    const diff = Math.round((target - (baseline[bancoId] || 0)) * 100) / 100;
+    if (Math.abs(diff) < 0.01) continue;
+    const payload = diff > 0
+      ? { bancoOrigem: "outro", bancoDestino: bancoId, valor: diff, data: hoje, criadoEm: serverTimestamp() }
+      : { bancoOrigem: bancoId, bancoDestino: "outro", valor: Math.abs(diff), data: hoje, criadoEm: serverTimestamp() };
+    await addDoc(transfRef, payload);
+  }
+
+  showToast("Investimentos zerados e saldo por banco ajustado.");
 }
 
 // ============================================================
