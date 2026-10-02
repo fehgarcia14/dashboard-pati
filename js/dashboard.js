@@ -594,19 +594,38 @@ function maybeRunSaldoFix() {
 
 async function runOneTimeSaldoFix() {
   if (saldoFixChecked) return;
-  if (!currentUser || currentUser.email !== "felipefefe14.123@gmail.com") return;
+  if (!currentUser) return;
   saldoFixChecked = true;
 
   const userRef = doc(db, "usuarios", currentUser.uid);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists() && userSnap.data().saldoFix20261002) return;
+
+  // Safety check: only touch accounts currently showing the exact broken
+  // signature (Nubank ~999.01 / Santander ~-819.54 with investimentos counted
+  // in), so this never runs against anyone else's data.
+  const range = getRange(filterState.type, filterState.value, filterState.year);
+  const baseline = computeBankBaseline();
+  const displayed = { ...baseline };
+  allInvestimentos.forEach(inv => {
+    if (parseDate(inv.data) > range.end) return;
+    if (inv.movimento === "rendimento") return;
+    if (inv.observacao === "Rendimento" || inv.observacao === "Correção de saldo") return;
+    const bk = inv.bancoOrigem || inv.banco || "outro";
+    const val = Number(inv.valor || 0);
+    displayed[bk] = (displayed[bk] || 0) + (inv.movimento === "aporte" ? -val : val);
+  });
+  const matchesKnownIssue =
+    Math.abs((displayed.nubank || 0) - 999.01) < 5 &&
+    Math.abs((displayed.santander || 0) - (-819.54)) < 5;
+  if (!matchesKnownIssue) return;
+
   await updateDoc(userRef, { saldoFix20261002: true });
 
   await Promise.all(allInvestimentos.map(inv =>
     deleteDoc(doc(db, "usuarios", currentUser.uid, "investimentos", inv.id))
   ));
 
-  const baseline = computeBankBaseline();
   const targets = { nubank: 800, santander: 180.46, bb: 0 };
   const hoje = todayStr();
   const transfRef = collection(db, "usuarios", currentUser.uid, "transferencias");
