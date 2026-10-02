@@ -597,10 +597,10 @@ async function runOneTimeSaldoFix() {
   if (!currentUser || currentUser.email !== "felipefefe14.123@gmail.com") return;
   saldoFixChecked = true;
 
-  const flagRef = doc(db, "usuarios", currentUser.uid, "_migrations", "fix-saldo-2026-10-02");
-  const flagSnap = await getDoc(flagRef);
-  if (flagSnap.exists()) return;
-  await setDoc(flagRef, { aplicadoEm: serverTimestamp() });
+  const userRef = doc(db, "usuarios", currentUser.uid);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists() && userSnap.data().saldoFix20261002) return;
+  await updateDoc(userRef, { saldoFix20261002: true });
 
   await Promise.all(allInvestimentos.map(inv =>
     deleteDoc(doc(db, "usuarios", currentUser.uid, "investimentos", inv.id))
